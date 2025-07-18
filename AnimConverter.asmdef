@@ -1,0 +1,21 @@
+{
+	"name": "AnimConverter",
+	"rootNamespace": "",
+	"references": [ 
+		"VRoidModSpringBones",
+		"UnityEngine",
+		"UnityEditor",
+		"MMD"
+	],
+	"includePlatforms": [],
+	"excludePlatforms": [],
+	"allowUnsafeCode": false,
+	"overrideReferences": false,
+	"precompiledReferences": [
+		""
+	],
+	"autoReferenced": false,
+	"defineConstraints": [],
+	"versionDefines": [],
+	"noEngineReferences": false
+}
