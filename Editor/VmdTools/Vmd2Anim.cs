@@ -1,10 +1,11 @@
-
 using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace VMD2Anim
 {
@@ -19,11 +20,14 @@ namespace VMD2Anim
         private float progress = 0f;
         private string progressMessage = "";
 
+        // 进度条的取消支持
+        private CancellationTokenSource cancellationTokenSource;
+
 
         #endregion
 
-        #region 窗口初始化
-        [MenuItem("MMD for Unity/VMD To Anim Converter")]
+        #region 窗口初始化，优先级调到最上面
+        [MenuItem("MMD for Unity/VMD To Anim Converter", false, 1)]
         public static void ShowWindow()
         {
             GetWindow<VMDConverter>("VMD To Anim Converter");
@@ -66,6 +70,7 @@ namespace VMD2Anim
             EditorGUILayout.EndHorizontal();
 
             settings.OverwriteExisting = EditorGUILayout.Toggle("覆盖已存在文件", settings.OverwriteExisting);
+            settings.TimeoutSeconds = EditorGUILayout.IntField("转换超时 (秒):", settings.TimeoutSeconds);
 
             if (GUILayout.Button("保存配置", GUILayout.Height(20)))
             {
@@ -77,6 +82,7 @@ namespace VMD2Anim
 
             if (GUILayout.Button("开始转换", GUILayout.Height(30)))
             {
+
                 ConvertVMDToAnim();
             }
 
@@ -86,6 +92,10 @@ namespace VMD2Anim
             {
                 EditorGUILayout.LabelField("转换进度:");
                 EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(), progress, progressMessage);
+                if (GUILayout.Button("取消"))
+                {
+                    cancellationTokenSource?.Cancel();
+                }
                 Repaint();
             }
 
@@ -138,30 +148,61 @@ namespace VMD2Anim
             }
         }
         #endregion
-
-        #region 核心转换逻辑
         // 主窗口转换方法
-        private void ConvertVMDToAnim()
+        private async void ConvertVMDToAnim()
         {
-            // 调用公共转换方法
-            ConvertVMDInternal(
-                settings.VmdFilePath,
-                settings.UseDefaultPMX ? settings.DefaultPmxPath : settings.PmxFilePath,
-                settings.OutputPath,
-                (p, msg) => { progress = p; progressMessage = msg; Repaint(); },
-                settings.OverwriteExisting,
-                QuickConvertMode,
-                QuickLoadAnim
-            );
+            cancellationTokenSource = new CancellationTokenSource();
+            isConverting = true;
+            progress = 0f;
+            progressMessage = "";
+            try
+            {
+                bool success = await ConvertVMDInternalAsync(
+                    settings.VmdFilePath,
+                    settings.UseDefaultPMX ? settings.DefaultPmxPath : settings.PmxFilePath,
+                    settings.OutputPath,
+                    (p, msg) => { progress = p; progressMessage = msg; Repaint(); },
+                    settings.OverwriteExisting,
+                    QuickConvertMode,
+                    QuickLoadAnim,
+                    settings.TimeoutSeconds * 1000,
+                    cancellationTokenSource.Token
+                );
+                if (success)
+                {
+                    progress = 1f;
+                    progressMessage = "转换完成";
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                progress = 0f;
+                progressMessage = "转换已取消";
+                UnityEngine.Debug.Log("VMD转换已取消");
+            }
+            catch (Exception ex)
+            {
+                progress = 0f;
+                progressMessage = $"转换失败: {ex.Message}";
+                UnityEngine.Debug.LogError(ex.Message);
+            }
+            finally
+            {
+                isConverting = false;
+                cancellationTokenSource.Dispose();
+                cancellationTokenSource = null;
+            }
         }
 
         // 外部API转换方法
-        public static bool ConvertVMD(
+        public static async Task<bool> ConvertVMD(
             string vmdPath,
             string pmxPath = null,
             string outputPath = null,
             Action<float, string> progressCallback = null,
-            bool? overwrite = null
+            bool? overwrite = null,
+            int timeoutMs = 180000, // 添加超时参数，默认180秒
+            CancellationToken cancellationToken = default // 添加取消令牌
             )
         {
             var settings = ConversionSettings.Load();
@@ -170,35 +211,39 @@ namespace VMD2Anim
             bool actualOverwrite = overwrite ?? settings.OverwriteExisting;
 
             // 调用公共转换方法
-            return ConvertVMDInternal(
+            return await ConvertVMDInternalAsync(
                 vmdPath,
                 actualPmxPath,
                 actualOutputPath,
                 progressCallback,
                 actualOverwrite,
                 quickMode: true, // 外部调用默认快速模式
-                true
+                true,
+                timeoutMs, // 传递超时参数
+                cancellationToken // 传递取消令牌
             );
         }
 
-        private static bool ConvertVMDInternal(
+        private static async Task<bool> ConvertVMDInternalAsync(
            string vmdPath,
            string pmxPath,
            string outputPath,
            Action<float, string> progressCallback,
            bool overwriteExisting,
            bool quickMode,
-           bool quickLoadAnim)
+           bool quickLoadAnim,
+           int timeoutMs,
+           CancellationToken cancellationToken
+           )
         {
             // 验证参数
-            //UnityEngine.Debug.Log($"[VMD转换] 开始转换: {vmdPath} -> {pmxPath} -> {outputPath}");
             if (!ValidateConversionParams(vmdPath, pmxPath, ConversionSettings.Load().PMX2FBXPath))
             {
                 progressCallback?.Invoke(0f, "参数验证失败，转换中止。");
                 return false;
             }
 
-            progressCallback?.Invoke(20f, "准备转换...");
+            progressCallback?.Invoke(0.2f, "准备转换...");
 
             // 核心路径变量（完全使用项目内路径）
             string vmdFileName = Path.GetFileNameWithoutExtension(vmdPath);
@@ -206,6 +251,7 @@ namespace VMD2Anim
             string fbxPath = Path.Combine(pmxDir, $"{vmdFileName}.fbx"); // FBX直接生成在PMX同目录
             string finalAnimPath = Path.Combine(outputPath, $"{vmdFileName}.anim");
 
+            string generatedFbxAbsPath = null;
             try
             {
                 // 检查覆盖
@@ -214,27 +260,27 @@ namespace VMD2Anim
                     progressCallback?.Invoke(0f, "目标文件已存在且未允许覆盖，转换中止。");
                     return false;
                 }
-                //UnityEngine.Debug.Log($"[VMD转换] 开始转换: {vmdPath} -> {fbxPath}");
 
                 // 步骤1：生成FBX
                 progressCallback?.Invoke(0.3f, "生成FBX文件...");
-                string generatedFbxPath = RunPMX2FBX(
+                generatedFbxAbsPath = await RunPMX2FBXAsync(
                     ConversionSettings.Load().PMX2FBXPath,
                     pmxPath,
                     vmdPath,
                     pmxDir, // 工作目录为PMX所在目录
                     progressCallback,
-                    quickMode
+                    quickMode,
+                    timeoutMs, // 传递超时参数
+                    cancellationToken // 传递取消令牌
                 );
-                fbxPath = generatedFbxPath; // 确认实际生成的FBX路径
-      
-                UnityEngine.Debug.Log($"[VMD转换] FBX生成成功: {fbxPath}");
+
+                UnityEngine.Debug.Log($"[VMD转换] FBX生成成功: {generatedFbxAbsPath}");
 
                 // 步骤2：刷新AssetDatabase以识别新生成的FBX
                 progressCallback?.Invoke(0.5f, "导入FBX并提取动画...");
                 AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
                 // 转换回Unity路径格式
-                fbxPath = MakeRelativePath(generatedFbxPath);
+                fbxPath = MakeRelativePath(generatedFbxAbsPath);
 
                 // 步骤3：设置FBX导入为Humanoid（直接使用项目内FBX路径）
                 EnsureFBXImportSettings(fbxPath);
@@ -260,9 +306,6 @@ namespace VMD2Anim
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
 
-                // 步骤6：清理生成的FBX文件（避免项目污染）
-                CleanupGeneratedFbx(fbxPath);
-
                 progressCallback?.Invoke(1.0f, "转换完成!");
                 return true;
             }
@@ -270,15 +313,18 @@ namespace VMD2Anim
             {
                 progressCallback?.Invoke(0f, $"转换失败: {ex.Message}");
                 UnityEngine.Debug.LogError($"[VMD转换] 失败: {ex.Message}");
-                // 异常时也清理FBX
-                CleanupGeneratedFbx(fbxPath);
                 return false;
+            }
+            finally
+            {
+                // 步骤6：清理生成的FBX文件（避免项目污染）
+                if (!string.IsNullOrEmpty(generatedFbxAbsPath))
+                {
+                    CleanupGeneratedFbx(MakeRelativePath(generatedFbxAbsPath));
+                }
             }
         }
 
-        /// <summary>
-        /// 快速提取Humanoid动画（参考Vmd2AnimUtils的做法）
-        /// </summary>
         /// <summary>
         /// 提取动画剪辑（简化路径依赖）
         /// </summary>
@@ -376,7 +422,7 @@ namespace VMD2Anim
             }
         }
 
-        #endregion
+
 
         #region 辅助方法
         // 验证参数（保持不变）
@@ -400,12 +446,19 @@ namespace VMD2Anim
             return true;
         }
 
-        // 执行PMX2FBX工具
-        private static string RunPMX2FBX(string toolPath, string pmxPath, string vmdPath, string workDir,
-                    Action<float, string> progressCallback = null, bool quickMode = true)
+        // 执行PMX2FBX工具异步版本
+        private static Task<string> RunPMX2FBXAsync(string toolPath, string pmxPath, string vmdPath, string workDir,
+                    Action<float, string> progressCallback = null, bool quickMode = true,
+                    int timeoutMs = 180000, CancellationToken cancellationToken = default)
         {
-            progressCallback?.Invoke(0.25f, "执行PMX2FBX工具...");
+            return Task.Run(() => RunPMX2FBXSync(toolPath, pmxPath, vmdPath, workDir, progressCallback, quickMode, timeoutMs, cancellationToken));
+        }
 
+        // 同步执行PMX2FBX
+        private static string RunPMX2FBXSync(string toolPath, string pmxPath, string vmdPath, string workDir,
+                Action<float, string> progressCallback = null, bool quickMode = true,
+                int timeoutMs = 180000, CancellationToken cancellationToken = default)
+        {
             string toolDirectory = Path.GetDirectoryName(toolPath);
             string defaultConfigPath = Path.Combine(toolDirectory, "pmx2fbx.xml");
             string backupConfigPath = Path.Combine(toolDirectory, "pmx2fbx.xml.bak");
@@ -413,81 +466,87 @@ namespace VMD2Anim
             bool configBackedUp = false;
 
             // 这里需要把路径都改为绝对路径
+            toolPath = Path.GetFullPath(toolPath);
             pmxPath = Path.GetFullPath(pmxPath);
             vmdPath = Path.GetFullPath(vmdPath);
+            workDir = Path.GetFullPath(workDir);
             try
             {
-                // 仅快速模式生成临时配置
-                if (quickMode)
-                    GenerateQuickConvertConfig(tempConfigPath, quickMode);
+            // 仅快速模式生成临时配置
+            if (quickMode)
+                GenerateQuickConvertConfig(tempConfigPath, quickMode);
 
-                // 备份原始配置（必要操作）
-                if (File.Exists(defaultConfigPath))
+            // 备份原始配置（必要操作）
+            if (File.Exists(defaultConfigPath))
+            {
+                File.Copy(defaultConfigPath, backupConfigPath, true);
+                configBackedUp = true;
+            }
+
+            // 应用临时配置（仅快速模式）
+            if (quickMode && File.Exists(tempConfigPath))
+                File.Copy(tempConfigPath, defaultConfigPath, true);
+            // 执行PMX2FBX，直接在项目内生成FBX
+            string arguments = $"\"{pmxPath}\" \"{vmdPath}\"";
+            UnityEngine.Debug.Log($"[PMX2FBX] 执行命令: {toolPath} {arguments}");
+            using (Process process = new Process())
+            {
+                process.StartInfo = new ProcessStartInfo
                 {
-                    File.Copy(defaultConfigPath, backupConfigPath, true);
-                    configBackedUp = true;
+                FileName = toolPath,
+                Arguments = arguments,
+                WorkingDirectory = workDir,
+                UseShellExecute = true, // 启用Shell
+                CreateNoWindow = false,
+                RedirectStandardOutput = false, // 不重定向
+                RedirectStandardError = false   // 不重定向
+                };
+
+                process.Start();
+
+                DateTime startTime = DateTime.Now;
+                while (!process.HasExited)
+                {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    try { process.Kill(); } catch { }
+                    throw new OperationCanceledException("PMX2FBX转换被取消", cancellationToken);
+                }
+                if ((DateTime.Now - startTime).TotalMilliseconds > timeoutMs)
+                {
+                    process.Kill();
+                    throw new TimeoutException($"PMX2FBX工具执行超时（{timeoutMs / 1000}秒），可能是文件错误或工具无响应");
+                }
+                process.WaitForExit(100);
                 }
 
-                // 应用临时配置（仅快速模式）
-                if (quickMode && File.Exists(tempConfigPath))
-                    File.Copy(tempConfigPath, defaultConfigPath, true);
+                // 不能再读取StandardOutput/StandardError，否则会抛出你遇到的异常
+                //string output = process.StandardOutput.ReadToEnd();
+                //string error = process.StandardError.ReadToEnd();
 
-                // 执行PMX2FBX，直接在项目内生成FBX
-                string arguments = $"\"{pmxPath}\" \"{vmdPath}\"";
-                UnityEngine.Debug.Log($"[PMX2FBX] 执行命令: {toolPath} {arguments}");
-                using (Process process = new Process())
-                {
-                    process.StartInfo = new ProcessStartInfo
-                    {
-                        FileName = toolPath,
-                        Arguments = arguments,
-                        WorkingDirectory = workDir,
-                        UseShellExecute = false,
-                        CreateNoWindow = true,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true
-                    };
+                //if (!string.IsNullOrEmpty(error))
+                //    UnityEngine.Debug.LogError($"[PMX2FBX错误]\n{error}");
+                if (process.ExitCode != 0)
+                throw new Exception($"PMX2FBX执行失败，退出码: {process.ExitCode}");
 
-                    process.Start();
+                string fbxAbsPath = Path.ChangeExtension(pmxPath, ".fbx");
+                if (!File.Exists(fbxAbsPath))
+                throw new Exception($"未找到生成的FBX文件: {fbxAbsPath}");
 
-                    string output = process.StandardOutput.ReadToEnd();
-                    string error = process.StandardError.ReadToEnd();
-                    bool completed = process.WaitForExit(180000); // 180000ms = 180秒
-                    if (!completed)
-                    {
-                        process.Kill(); // 超时则强制终止进程
-                        throw new Exception("PMX2FBX工具执行超时（3分钟），可能是文件错误或工具无响应");
-                    }
-
-                    if (!string.IsNullOrEmpty(error))
-                        UnityEngine.Debug.LogError($"[PMX2FBX错误]\n{error}");
-                    if (process.ExitCode != 0)
-                        throw new Exception($"PMX2FBX执行失败，退出码: {process.ExitCode}\n{error}");
-
-
-
-
-
-                    string fbxPath = Path.ChangeExtension(pmxPath, ".fbx");
-                    if (!File.Exists(fbxPath))
-                        throw new Exception($"未找到生成的FBX文件: {fbxPath}");
-
-                    progressCallback?.Invoke(0.5f, "FBX生成成功");
-
-                    return fbxPath;
-                }
+                return fbxAbsPath;
+            }
             }
             finally
             {
-                // 恢复原始配置（必要操作）
-                if (configBackedUp && File.Exists(backupConfigPath))
-                {
-                    File.Copy(backupConfigPath, defaultConfigPath, true);
-                    File.Delete(backupConfigPath);
-                }
-                // 清理临时配置文件
-                if (File.Exists(tempConfigPath))
-                    File.Delete(tempConfigPath);
+            // 恢复原始配置（必要操作）
+            if (configBackedUp && File.Exists(backupConfigPath))
+            {
+                File.Copy(backupConfigPath, defaultConfigPath, true);
+                File.Delete(backupConfigPath);
+            }
+            // 清理临时配置文件
+            if (File.Exists(tempConfigPath))
+                File.Delete(tempConfigPath);
             }
         }
 
@@ -497,9 +556,8 @@ namespace VMD2Anim
             if (string.IsNullOrEmpty(fbxPath)) return;
 
             // 删除FBX文件及其meta文件
-            if (File.Exists(fbxPath))
+            if (AssetDatabase.DeleteAsset(fbxPath))
             {
-                AssetDatabase.DeleteAsset(fbxPath);
                 UnityEngine.Debug.Log($"[VMD转换] 清理临时FBX: {fbxPath}");
             }
             string metaPath = $"{fbxPath}.meta";
@@ -599,7 +657,8 @@ namespace VMD2Anim
         public string PMX2FBXPath = "Assets/MMD4Mecanim/Editor/PMX2FBX/pmx2fbx.exe";
         public bool UseDefaultPMX = true;
         public bool OverwriteExisting = false;
-        
+        public int TimeoutSeconds = 180;
+
 
         private const string SETTINGS_PATH = "Assets/VMD2AnimSettings.asset";
 

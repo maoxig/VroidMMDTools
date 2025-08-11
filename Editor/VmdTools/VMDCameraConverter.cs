@@ -93,7 +93,7 @@ public class VMDCameraConverter
 									-cameraData.rotation.y * Mathf.Rad2Deg,
 									cameraData.rotation.z * Mathf.Rad2Deg));
 
-									
+
 
 			//距离,修改局部坐标的Z值
 			//cameraLocalTrans.localEulerAngles = Vector3.zero;
@@ -104,7 +104,7 @@ public class VMDCameraConverter
 			posY_keyframes[i] = new Keyframe(frameTime, cameraData.location.y * mmd4unity_unit);
 			posZ_keyframes[i] = new Keyframe(frameTime, -cameraData.location.z * mmd4unity_unit);
 
-			// 在Y轴上额外旋转180度
+			// 在Y轴上额外旋转180度，因为初始时Camera_root有个旋转180度的偏移
 			Quaternion yAxis180Rotation = Quaternion.Euler(0, 180, 0);
 			Quaternion = Quaternion * yAxis180Rotation;
 

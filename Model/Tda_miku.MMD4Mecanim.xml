@@ -34,15 +34,15 @@
     <muscleFootInnerZAngle>-1</muscleFootInnerZAngle>
     <muscleFootOuterZAngle>-1</muscleFootOuterZAngle>
     <createSkeletonFlag>1</createSkeletonFlag>
-    <boneRenameFlag>1</boneRenameFlag>
-    <prefixBoneRenameFlag>1</prefixBoneRenameFlag>
-    <prefixBoneNoNameFlag>1</prefixBoneNoNameFlag>
-    <prefixNullBoneNameFlag>1</prefixNullBoneNameFlag>
+    <boneRenameFlag>0</boneRenameFlag>
+    <prefixBoneRenameFlag>0</prefixBoneRenameFlag>
+    <prefixBoneNoNameFlag>0</prefixBoneNoNameFlag>
+    <prefixNullBoneNameFlag>0</prefixNullBoneNameFlag>
     <morphRenameFlag>0</morphRenameFlag>
     <prefixMorphNoNameFlag>0</prefixMorphNoNameFlag>
-    <materialRenameFlag>1</materialRenameFlag>
-    <prefixMaterialNoNameFlag>1</prefixMaterialNoNameFlag>
-    <escapeMaterialNameFlag>1</escapeMaterialNameFlag>
+    <materialRenameFlag>0</materialRenameFlag>
+    <prefixMaterialNoNameFlag>0</prefixMaterialNoNameFlag>
+    <escapeMaterialNameFlag>0</escapeMaterialNameFlag>
     <addMotionNameExtFlag>1</addMotionNameExtFlag>
     <addMotionNameExtAsLegacyFlag>0</addMotionNameExtAsLegacyFlag>
     <nullBoneFlag>1</nullBoneFlag>
@@ -92,7 +92,7 @@
     <morphOppaiBoneName2>首</morphOppaiBoneName2>
   </globalSettings>
   <bulletPhysics>
-    <enabled>1</enabled>
+    <enabled>0</enabled>
     <framePerSecond>0</framePerSecond>
     <gravityScale>10</gravityScale>
     <worldSolverInfoNumIterations>0</worldSolverInfoNumIterations>
@@ -142,7 +142,7 @@
     <waitProcessExitting>false</waitProcessExitting>
     <pmxAssetPath>Assets/AnimConverter/Model/Tda_miku.pmx</pmxAssetPath>
     <vmdAssetPathList>
-      <string>Assets/AnimConverter/Workspace/GETCHA!/リップ_miku(えモーフあり).vmd</string>
+      <string>Assets/AnimConverter/Workspace/我的悲伤是水做的/我的悲伤是水做的.vmd</string>
     </vmdAssetPathList>
     <fbxOutputPath>Assets/AnimConverter/Model/Tda_miku.fbx</fbxOutputPath>
     <bulletPhysicsVersion>_275</bulletPhysicsVersion>
@@ -370,6 +370,193 @@
         <tessEnabled>false</tessEnabled>
         <transparencyCache>Enabled</transparencyCache>
       </MaterialProperty>
+      <MaterialProperty>
+        <materialName>face00</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Disabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>face01</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Disabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>eye_hi</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Enabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>eye_hi2</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Enabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>skin</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Disabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>body00</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Disabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>body01</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Disabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>body_pink</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Enabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>body_green</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Enabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>body_green2</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Enabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>body02</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Disabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>hair00</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Disabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>hair01</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Disabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>hairshadow</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Enabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>cheek</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Enabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>lens</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Disabled</transparencyCache>
+      </MaterialProperty>
+      <MaterialProperty>
+        <materialName>wing</materialName>
+        <isVisible>true</isVisible>
+        <isLocked>false</isLocked>
+        <isUIFoldout>false</isUIFoldout>
+        <overrideToonTone>false</overrideToonTone>
+        <overrideShadowLum>false</overrideShadowLum>
+        <overrideTess>false</overrideTess>
+        <tessEnabled>false</tessEnabled>
+        <transparencyCache>Enabled</transparencyCache>
+      </MaterialProperty>
     </materialProperyList>
     <materialBlockPropertyList>
       <MaterialBlockProperty>
@@ -391,6 +578,23 @@
           <string>14.cheek</string>
           <string>15.lens</string>
           <string>16.wing</string>
+          <string>face00</string>
+          <string>face01</string>
+          <string>eye_hi</string>
+          <string>eye_hi2</string>
+          <string>skin</string>
+          <string>body00</string>
+          <string>body01</string>
+          <string>body_pink</string>
+          <string>body_green</string>
+          <string>body_green2</string>
+          <string>body02</string>
+          <string>hair00</string>
+          <string>hair01</string>
+          <string>hairshadow</string>
+          <string>cheek</string>
+          <string>lens</string>
+          <string>wing</string>
         </materialNames>
         <isUIFoldout>true</isUIFoldout>
         <baseColor>

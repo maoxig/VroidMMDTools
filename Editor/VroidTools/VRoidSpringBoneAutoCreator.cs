@@ -41,10 +41,10 @@ namespace VRMSpringAutoCreator
         private AutoSpringBoneConfig config = new AutoSpringBoneConfig();
         private Vector2 scrollPos;
 
-        [MenuItem("VRoidTools/Auto Spring Bone Config")]
+        [MenuItem("VRoidTools/自动弹簧骨骼配置")]
         public static void ShowWindow()
         {
-            GetWindow<VRoidAutoSpringBoneWindow>("Spring Bone Config");
+            GetWindow<VRoidAutoSpringBoneWindow>("自动弹簧骨骼配置");
         }
 
         private void OnEnable()

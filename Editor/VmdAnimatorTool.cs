@@ -11,6 +11,10 @@ using MMD;
 using AnimConverter.Editor.Utils;
 using VMD2Anim;
 using Assets.AnimConverter.Editor;
+// CancellationTokenSource
+using System.Threading;
+// Task
+using System.Threading.Tasks;
 
 namespace Assets.AnimConverter.Editor
 {
@@ -30,6 +34,12 @@ namespace Assets.AnimConverter.Editor
         private string animVmdFilePath;
         private VMD parsedAnimVmd;
         private bool animVmdParsed = false;
+
+        private bool isConverting = false;
+        private float progress = 0f;
+        private string progressMessage = "";
+        // 超时时间
+        private int timeoutSeconds = 180;
 
         // 2. 镜头VMD（支持多个）
         private List<string> cameraVmdFilePaths = new List<string>();
@@ -101,8 +111,11 @@ namespace Assets.AnimConverter.Editor
         private Vector2 allMorphsScrollPos;
         private bool showMappingOptions = false;
 
-        private bool hasAutoSearchedVmd = false;
-        private string lastSearchedClipName = "";
+
+
+
+        // 4. 在编辑器窗口中添加取消支持
+        private CancellationTokenSource cancellationTokenSource;
 
         // 新增：配置管理器
         private ToolConfigManager configManager;
@@ -115,7 +128,8 @@ namespace Assets.AnimConverter.Editor
         private bool showPmxOptions = false;
         private string pmxFilePath = "";
 
-        [MenuItem("MMD for Unity/VMD Morph Camera Animator Tool")]
+        // 优先级放到最上面
+        [MenuItem("MMD for Unity/VMD Morph Camera Animator Tool", false, 1)]
         public static void ShowWindow()
         {
             var window = GetWindow<VmdMorphAnimatorTool>("VMD Morph Animator Tool");
@@ -130,7 +144,7 @@ namespace Assets.AnimConverter.Editor
             EditorGUILayout.Space();
 
             // 1. 动画提取部分
-            DrawAnimationExtractionSection();
+            var _ = DrawAnimationExtractionSection();
             DrawSeparator();
 
             // 2. 镜头提取部分
@@ -157,9 +171,8 @@ namespace Assets.AnimConverter.Editor
             EditorGUILayout.EndScrollView();
         }
 
-        #region 新增：三个提取部分的UI和逻辑
-
-        private void DrawAnimationExtractionSection()
+        #region 提取部分的UI和逻辑
+        private async Task DrawAnimationExtractionSection()
         {
             EditorGUILayout.LabelField("1. 动画提取", EditorStyles.boldLabel);
             animExtractionMode = (AnimExtractionMode)EditorGUILayout.EnumPopup("动画来源", animExtractionMode);
@@ -176,21 +189,13 @@ namespace Assets.AnimConverter.Editor
                     ResetAnimVmdState();
                 }
                 EditorGUILayout.EndHorizontal();
-
-                // 自动查找关联VMD（如果需要）
-                if (string.IsNullOrEmpty(animVmdFilePath) && sourceClip != null &&
-                    (!hasAutoSearchedVmd || lastSearchedClipName != sourceClip.name))
-                {
-                    hasAutoSearchedVmd = true;
-                    lastSearchedClipName = sourceClip.name;
-                    TryFindAnimVmdFile();
-                    AutoNameResources();
-                }
             }
             else // FromVmdFile
             {
                 // 使用通用拖拽框方法
                 animVmdFilePath = DrawVmdDragAndDropArea(animVmdFilePath, "动画VMD文件", "浏览...", "清空");
+                // 配置超时秒
+                timeoutSeconds = EditorGUILayout.IntField("转换超时（秒）", timeoutSeconds);
 
                 // PMX辅助选项
                 showPmxOptions = EditorGUILayout.Foldout(showPmxOptions, "使用PMX模型辅助转换（可选）");
@@ -226,54 +231,80 @@ namespace Assets.AnimConverter.Editor
                     string animFileName = Path.GetFileNameWithoutExtension(animVmdFilePath) + ".anim";
                     string animFullPath = Path.Combine(animOutputDir, animFileName);
 
+                    EditorGUI.BeginDisabledGroup(isConverting);
                     if (GUILayout.Button("从VMD生成动画剪辑"))
                     {
-                        bool result = false;
+                        // 如果已有任务，先取消
+                        if (cancellationTokenSource != null && !cancellationTokenSource.IsCancellationRequested)
+                        {
+                            cancellationTokenSource.Cancel();
+                            cancellationTokenSource.Dispose();
+                        }
+
+                        cancellationTokenSource = new CancellationTokenSource();
+
+
                         try
                         {
-                            result = VMD2Anim.VMDConverter.ConvertVMD(
+                            bool result = await VMD2Anim.VMDConverter.ConvertVMD(
                                 animVmdFilePath,
                                 showPmxOptions && !string.IsNullOrEmpty(pmxFilePath) ? pmxFilePath : null,
                                 animOutputDir,
-                                (progress, msg) => { EditorUtility.DisplayProgressBar("VMD转换", msg, progress); },
-                                overwrite: true
+                                (p, msg) =>
+                                {
+                                    progress = p;
+                                    progressMessage = msg;
+                                    Repaint(); // 刷新 GUI 以更新进度条
+                                },
+                                overwrite: true,
+                                timeoutMs: timeoutSeconds * 1000,
+                                cancellationToken: cancellationTokenSource.Token
                             );
+
+                            if (result && File.Exists(animFullPath))
+                            {
+                                sourceClip = AssetDatabase.LoadAssetAtPath<AnimationClip>(AssetUtils.GetProjectRelativePath(animFullPath));
+                                EditorUtility.DisplayDialog("成功", $"已生成动画剪辑: {animFileName}", "确定");
+                                AutoNameResources();
+                                animVmdParsed = true;
+                            }
+                            else
+                            {
+                                EditorUtility.DisplayDialog("失败", "VMD转换为动画失败", "确定");
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            EditorUtility.DisplayDialog("取消", "VMD转换已取消", "确定");
+                        }
+                        catch (Exception ex)
+                        {
+                            EditorUtility.DisplayDialog("错误", $"VMD转换失败: {ex.Message}", "确定");
+                            UnityEngine.Debug.LogError($"[VMD转换] 失败: {ex.Message}");
                         }
                         finally
                         {
-                            EditorUtility.ClearProgressBar();
+                            isConverting = false;
+                            cancellationTokenSource.Dispose();
+                            cancellationTokenSource = null;
                         }
+                    }
+                    EditorGUI.EndDisabledGroup();
 
-                        if (result && File.Exists(animFullPath))
+                    // 转换中的进度条和取消按钮
+                    if (isConverting)
+                    {
+                        EditorGUILayout.LabelField("转换进度:");
+                        EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(), progress, progressMessage);
+                        if (GUILayout.Button("取消"))
                         {
-                            sourceClip = AssetDatabase.LoadAssetAtPath<AnimationClip>(AssetUtils.GetProjectRelativePath(animFullPath));
-                            EditorUtility.DisplayDialog("成功", $"已生成动画剪辑: {animFileName}", "确定");
-                            AutoNameResources();
-                            animVmdParsed = true;
+                            cancellationTokenSource?.Cancel();
                         }
-                        else
-                        {
-                            EditorUtility.DisplayDialog("失败", "VMD转换为动画失败", "确定");
-                        }
+                        Repaint();
                     }
                 }
             }
-
-            // 解析状态显示
-            if (animVmdParsed)
-            {
-                EditorGUILayout.LabelField("✓ 动画VMD已解析", EditorStyles.miniLabel);
-            }
-            else if (!string.IsNullOrEmpty(animVmdFilePath) && File.Exists(animVmdFilePath))
-            {
-                if (GUILayout.Button("解析动画VMD文件"))
-                {
-                    ParseAnimVmdFile();
-                }
-            }
-            EditorGUILayout.Space();
         }
-
         private void DrawCameraExtractionSection()
         {
             EditorGUILayout.LabelField("2. 镜头提取", EditorStyles.boldLabel);
@@ -1235,7 +1266,6 @@ namespace Assets.AnimConverter.Editor
             animVmdFilePath = "";
             animVmdParsed = false;
             parsedAnimVmd = null;
-            hasAutoSearchedVmd = false;
         }
 
         private void ResetCameraVmdState()
