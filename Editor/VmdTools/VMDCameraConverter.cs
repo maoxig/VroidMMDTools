@@ -8,19 +8,21 @@ using UnityEngine;
 
 public class VMDCameraConverter
 {
-	public static AnimationClip CreateAnimationClip(VMDFormat format)
+	public static AnimationClip CreateAnimationClip(VMDFormat format, float cameraScale = 1.0f)
 	{
 		VMDCameraConverter converter = new VMDCameraConverter();
+		converter.cameraScale = cameraScale;
 		return converter.CreateAnimationClip_(format);
 	}
 	// 新增重载方法：支持自定义路径配置
 
-	public static AnimationClip CreateAnimationClip(VMDFormat format, string cameraRootPath, string distancePath, string cameraComponentPath)
+	public static AnimationClip CreateAnimationClip(VMDFormat format, string cameraRootPath, string distancePath, string cameraComponentPath, float cameraScale = 1.0f)
 	{
 		VMDCameraConverter converter = new VMDCameraConverter();
 		converter.cameraRootPath = cameraRootPath;
 		converter.distancePath = distancePath;
 		converter.cameraComponentPath = cameraComponentPath;
+		converter.cameraScale = cameraScale;
 		return converter.CreateAnimationClip_(format);
 	}
 	// 新增路径配置字段
@@ -29,6 +31,8 @@ public class VMDCameraConverter
 
 	private string cameraComponentPath = "Camera_root/Camera_root_1/Camera"; // 相机组件完整路径
 
+	//镜头位移整体缩放（0到2），用于解决设置不正确的问题
+	private float cameraScale = 1.0f;
 
 	private AnimationClip CreateAnimationClip_(VMDFormat format)
 	{
@@ -100,11 +104,11 @@ public class VMDCameraConverter
 			//cameraLocalTrans.localPosition = new Vector3(0, 0, (cameraData.length) * mmd4unity_unit);//Z相反轴,但这里实际值已经经过取反处理
 
 			float frameTime = cameraData.frame_no * tick_time;
-			posX_keyframes[i] = new Keyframe(frameTime, -cameraData.location.x * mmd4unity_unit);
-			posY_keyframes[i] = new Keyframe(frameTime, cameraData.location.y * mmd4unity_unit);
-			posZ_keyframes[i] = new Keyframe(frameTime, -cameraData.location.z * mmd4unity_unit);
+			// 应用cameraScale到位置和距离
+			posX_keyframes[i] = new Keyframe(frameTime, -cameraData.location.x * mmd4unity_unit * cameraScale);
+			posY_keyframes[i] = new Keyframe(frameTime, cameraData.location.y * mmd4unity_unit * cameraScale);
+			posZ_keyframes[i] = new Keyframe(frameTime, -cameraData.location.z * mmd4unity_unit * cameraScale);
 
-			// 在Y轴上额外旋转180度，因为初始时Camera_root有个旋转180度的偏移
 			Quaternion yAxis180Rotation = Quaternion.Euler(0, 180, 0);
 			Quaternion = Quaternion * yAxis180Rotation;
 
@@ -117,8 +121,8 @@ public class VMDCameraConverter
 			//视角fov
 			fov_keyframes[i] = new Keyframe(frameTime, cameraData.viewing_angle);
 
-			//摄像机距离
-			dis_keyframes[i] = new Keyframe(frameTime, cameraData.length * mmd4unity_unit);
+			// 应用cameraScale到距离
+			dis_keyframes[i] = new Keyframe(frameTime, cameraData.length * mmd4unity_unit * cameraScale);
 		}
 
 		//UnityEngine.Object.DestroyImmediate(cameraWorldObj);

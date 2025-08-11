@@ -221,13 +221,14 @@ namespace AnimConverter.Editor.Utils
             string cameraVmdPath,
             string cameraRootPath,
             string cameraDistancePath,
-            string cameraComponentPath)
+            string cameraComponentPath,
+            float cameraScale)
         {
             try
             {
                 // 生成临时相机剪辑
                 Debug.Log($"开始生成相机曲线，VMD路径: {cameraVmdPath}");
-                var tempAgent = new CameraVmdAgent(cameraVmdPath, cameraRootPath, cameraDistancePath, cameraComponentPath);
+                var tempAgent = new CameraVmdAgent(cameraVmdPath, cameraRootPath, cameraDistancePath, cameraComponentPath, cameraScale);
                 AnimationClip cameraClip = tempAgent.CreateAnimationClip();
 
                 if (cameraClip == null)

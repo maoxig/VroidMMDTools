@@ -100,7 +100,7 @@ namespace MMD6UnityTool
             string selectPath = AssetDatabase.GetAssetPath(selected);
             if (!string.IsNullOrEmpty(selectPath))
             {
-                CameraVmdAgent camera_agent = new CameraVmdAgent(selectPath, "", "Distance", "Distance/Camera");
+                CameraVmdAgent camera_agent = new CameraVmdAgent(selectPath, "", "Distance", "Distance/Camera", 1.0f);
                 camera_agent.CreateAnimationClip();
                 Debug.LogFormat("[{0}]:Export Camera Vmd Success!", System.DateTime.Now);
             }

@@ -47,6 +47,8 @@ namespace Assets.AnimConverter.Editor
         private List<VMDCameraFrame> vmdCameraFrames = new List<VMDCameraFrame>();
         private bool cameraVmdParsed = false;
 
+        private float cameraScale = 1.0f; // 相机缩放比例
+
         // 3. 表情VMD（支持多个）
         private List<string> morphVmdFilePaths = new List<string>();
         private List<VMD> parsedMorphVmds = new List<VMD>();
@@ -196,6 +198,8 @@ namespace Assets.AnimConverter.Editor
                 animVmdFilePath = DrawVmdDragAndDropArea(animVmdFilePath, "动画VMD文件", "浏览...", "清空");
                 // 配置超时秒
                 timeoutSeconds = EditorGUILayout.IntField("转换超时（秒）", timeoutSeconds);
+                // 帮助信息：如果转换失败，尝试手动生成anim文件
+                EditorGUILayout.HelpBox("如果转换失败，请尝试手动生成anim文件", MessageType.Info);
 
                 // PMX辅助选项
                 showPmxOptions = EditorGUILayout.Foldout(showPmxOptions, "使用PMX模型辅助转换（可选）");
@@ -333,6 +337,9 @@ namespace Assets.AnimConverter.Editor
 
                     }
                 }
+                // 镜头缩放配置
+                cameraScale = EditorGUILayout.Slider("相机位移缩放", cameraScale, 0.1f, 2.0f);
+
 
                 showCameraAdvancedOptions = EditorGUILayout.Foldout(showCameraAdvancedOptions, "镜头路径配置");
                 if (showCameraAdvancedOptions)
@@ -1094,7 +1101,7 @@ namespace Assets.AnimConverter.Editor
                 {
                     foreach (var cameraVmdFilePath in cameraVmdFilePaths)
                     {
-                        baseClip = AnimUtils.AddCameraCurvesToClip(baseClip, cameraVmdFilePath, cameraRootPath, cameraDistancePath, cameraComponentPath);
+                        baseClip = AnimUtils.AddCameraCurvesToClip(baseClip, cameraVmdFilePath, cameraRootPath, cameraDistancePath, cameraComponentPath, cameraScale);
                     }
                 }
 

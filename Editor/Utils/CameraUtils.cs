@@ -18,12 +18,15 @@ namespace AnimConverter.Editor.Utils
 
         string cameraComponentPath; //= "Main Camera"; // 默认相机组件路径
 
-        public CameraVmdAgent(string filePath, string cameraRootPath, string distancePath, string cameraComponentPath)
+        float cameraScale = 1.0f; // 相机缩放比例
+
+        public CameraVmdAgent(string filePath, string cameraRootPath, string distancePath, string cameraComponentPath, float cameraScale)
         {
             _vmdFile = filePath;
             this.cameraRootPath = cameraRootPath;
             this.distancePath = distancePath;
             this.cameraComponentPath = cameraComponentPath;
+            this.cameraScale = cameraScale;
 
             // 验证路径格式
             if (string.IsNullOrEmpty(this.cameraRootPath))
@@ -56,7 +59,8 @@ namespace AnimConverter.Editor.Utils
                 format_,
                 cameraRootPath,  // 确保路径被正确使用
                 distancePath,     // 传递距离控制路径
-                cameraComponentPath // 相机组件完整路径
+                cameraComponentPath, // 相机组件完整路径
+                cameraScale       // 相机缩放比例
             );
 
             if (animation_clip == null)
