@@ -592,7 +592,7 @@ namespace VMD2Anim
         <animKeyRotationEpsilon2>0.03</animKeyRotationEpsilon2>
         <animKeyTranslationEpsilon1>0.002</animKeyTranslationEpsilon1>
         <animKeyTranslationEpsilon2>0.003</animKeyTranslationEpsilon2>
-        <animAwakeWaitingTime>3</animAwakeWaitingTime>
+        <animAwakeWaitingTime>0</animAwakeWaitingTime>
         <enableFBXTexture>0</enableFBXTexture>
     </globalSettings>
     <bulletPhysics>
