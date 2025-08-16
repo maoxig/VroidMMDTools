@@ -126,6 +126,9 @@ namespace Assets.AnimConverter.Editor
         enum AnimExtractionMode { FromExistingClip, FromVmdFile }
         AnimExtractionMode animExtractionMode = AnimExtractionMode.FromVmdFile;
 
+        // 是否使用快速配置
+        private bool useQuickConfig = true;
+
         // PMX辅助文件
         private bool showPmxOptions = false;
         private string pmxFilePath = "";
@@ -201,6 +204,9 @@ namespace Assets.AnimConverter.Editor
                 // 帮助信息：如果转换失败，尝试手动生成anim文件
                 EditorGUILayout.HelpBox("如果转换失败，请尝试手动生成anim文件", MessageType.Info);
 
+                // 快速配置选项
+                useQuickConfig = EditorGUILayout.Toggle("使用快速转换配置文件", useQuickConfig);
+
                 // PMX辅助选项
                 showPmxOptions = EditorGUILayout.Foldout(showPmxOptions, "使用PMX/PMD模型辅助转换（可选）");
                 if (showPmxOptions)
@@ -261,6 +267,7 @@ namespace Assets.AnimConverter.Editor
                                     Repaint(); // 刷新 GUI 以更新进度条
                                 },
                                 overwrite: true,
+                                quickMode: useQuickConfig, // 使用快速配置
                                 timeoutMs: timeoutSeconds * 1000,
                                 cancellationToken: cancellationTokenSource.Token
                             );

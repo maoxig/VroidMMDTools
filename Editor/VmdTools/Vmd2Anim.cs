@@ -201,6 +201,7 @@ namespace VMD2Anim
             string outputPath = null,
             Action<float, string> progressCallback = null,
             bool? overwrite = null,
+            bool quickMode = true,
             int timeoutMs = 180000, // 添加超时参数，默认180秒
             CancellationToken cancellationToken = default // 添加取消令牌
             )
@@ -217,7 +218,7 @@ namespace VMD2Anim
                 actualOutputPath,
                 progressCallback,
                 actualOverwrite,
-                quickMode: true, // 外部调用默认快速模式
+                quickMode: quickMode, // 外部调用默认快速模式
                 true,
                 timeoutMs, // 传递超时参数
                 cancellationToken // 传递取消令牌
@@ -575,10 +576,6 @@ namespace VMD2Anim
     <globalSettings>
         <editorAdvancedMode>true</editorAdvancedMode>
         <blendShapesFlag>0</blendShapesFlag>
-        <boneRenameFlag>0</boneRenameFlag>
-        <prefixBoneRenameFlag>0</prefixBoneRenameFlag>
-        <prefixBoneNoNameFlag>0</prefixBoneNoNameFlag>
-        <prefixNullBoneNameFlag>0</prefixNullBoneNameFlag>
         <morphRenameFlag>0</morphRenameFlag>
         <prefixMorphNoNameFlag>0</prefixMorphNoNameFlag>
         <materialRenameFlag>0</materialRenameFlag>
