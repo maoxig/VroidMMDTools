@@ -202,23 +202,23 @@ namespace Assets.AnimConverter.Editor
                 EditorGUILayout.HelpBox("如果转换失败，请尝试手动生成anim文件", MessageType.Info);
 
                 // PMX辅助选项
-                showPmxOptions = EditorGUILayout.Foldout(showPmxOptions, "使用PMX模型辅助转换（可选）");
+                showPmxOptions = EditorGUILayout.Foldout(showPmxOptions, "使用PMX/PMD模型辅助转换（可选）");
                 if (showPmxOptions)
                 {
                     EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.LabelField("PMX文件", GUILayout.Width(EditorGUIUtility.labelWidth));
+                    EditorGUILayout.LabelField("PMX/PMD文件", GUILayout.Width(EditorGUIUtility.labelWidth));
                     if (!string.IsNullOrEmpty(pmxFilePath) && File.Exists(pmxFilePath))
                     {
                         EditorGUILayout.LabelField(Path.GetFileName(pmxFilePath), EditorStyles.objectFieldThumb);
                     }
                     else
                     {
-                        EditorGUILayout.LabelField("未选择PMX文件", EditorStyles.objectFieldThumb);
+                        EditorGUILayout.LabelField("未选择PMX/PMD文件", EditorStyles.objectFieldThumb);
                     }
                     if (GUILayout.Button("浏览...", GUILayout.Width(80)))
                     {
-                        var path = EditorUtility.OpenFilePanel("选择PMX文件", Application.dataPath, "pmx");
-                        if (!string.IsNullOrEmpty(path) && path.EndsWith(".pmx"))
+                        var path = EditorUtility.OpenFilePanel("选择PMX/PMD文件", Application.dataPath, "pmx,pmd");
+                        if (!string.IsNullOrEmpty(path) && (path.EndsWith(".pmx", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".pmd", StringComparison.OrdinalIgnoreCase)))
                         {
                             pmxFilePath = path;
                         }
