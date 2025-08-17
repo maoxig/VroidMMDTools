@@ -39,7 +39,7 @@ namespace Assets.AnimConverter.Editor
         private float progress = 0f;
         private string progressMessage = "";
         // 超时时间
-        private int timeoutSeconds = 180;
+        private int timeoutSeconds = 240;
 
         // 2. 镜头VMD（支持多个）
         private List<string> cameraVmdFilePaths = new List<string>();
@@ -1197,7 +1197,7 @@ namespace Assets.AnimConverter.Editor
                 EditorGUILayout.LabelField("- 音频: 未选择", EditorStyles.miniLabel);
             }
 
-            EditorGUILayout.LabelField("资源将被打包输出为: " + bundleBaseName + ".unity3d", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField("资源将统一命名并被打包输出为: " + bundleBaseName + ".unity3d", EditorStyles.miniBoldLabel);
         }
 
         private void ShowMorphStatistics()
