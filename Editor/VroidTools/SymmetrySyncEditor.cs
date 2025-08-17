@@ -2,191 +2,363 @@ using UnityEditor;
 using UnityEngine;
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using System.Reflection;
 using System.Linq;
 
-[CustomEditor(typeof(SymmetrySync))]
-public class SymmetrySyncEditor : Editor
+public class SymmetrySyncWindow : EditorWindow
 {
-    private static List<SymmetrySync> activeSymmetryObjects = new List<SymmetrySync>();
-    private static bool isListening = false;
-    private static bool isProcessingChange = false; // 防止循环同步
+    // 源物体和目标物体
+    private Transform sourceTransform;
+    private Transform targetTransform;
 
-    private SymmetrySync symmetrySync;
+    // 对称设置
+    private SymmetryAxis symmetryAxis = SymmetryAxis.X;
+    private List<SymmetryKeywordPair> keywordPairs = new List<SymmetryKeywordPair>
+    {
+        new SymmetryKeywordPair ("Left", "Right"),
+        new SymmetryKeywordPair ("左", "右"),
+        new SymmetryKeywordPair ("L", "R"),
+        new SymmetryKeywordPair ("左側", "右側"),
+        new SymmetryKeywordPair ("左の", "右の")
+    };
+    private bool ignorePrefixNumbers = true;
+    private bool showArraySettings;
+    private List<string> recursiveArrayTypes = new List<string>
+{
+    "SphereCollider" // 默认包含VRoid碰撞体类
+};
+    // 面板状态
+    private Vector2 scrollPosition;
+    private bool showAdvancedSettings;
+    private bool showSyncPreview;
 
+    // 预览数据
+    private PreviewData previewData;
+
+    [MenuItem("VRoidTools/对称同步工具")]
+    public static void ShowWindow()
+    {
+        SymmetrySyncWindow window = GetWindow<SymmetrySyncWindow>("对称同步工具");
+        window.minSize = new Vector2(300, 400); // 设置最小尺寸
+        window.Show();
+
+        // 初始时检查当前选择
+        if (Selection.activeTransform != null && Selection.transforms.Length == 1)
+        {
+            window.sourceTransform = Selection.activeTransform;
+            window.AutoFindSymmetricTransform();
+        }
+    }
     private void OnEnable()
     {
-        symmetrySync = (SymmetrySync)target;
+        // 监听选择变化
+        Selection.selectionChanged += OnSelectionChanged;
     }
 
-    public override void OnInspectorGUI()
+    private void OnDisable()
     {
-        EditorGUI.BeginChangeCheck();
-
-        base.OnInspectorGUI();
-
-        if (EditorGUI.EndChangeCheck())
-        {
-            serializedObject.ApplyModifiedProperties();
-        }
+        Selection.selectionChanged -= OnSelectionChanged;
     }
 
-    public static void RegisterSymmetryObject(SymmetrySync obj)
+    private void OnSelectionChanged()
     {
-        if (obj == null) return;
-
-        if (!activeSymmetryObjects.Contains(obj))
+        // 当选择单个物体时自动设置为源物体
+        if (Selection.activeTransform != null && Selection.transforms.Length == 1)
         {
-            activeSymmetryObjects.Add(obj);
-            StartListening();
-        }
-    }
-
-    public static void UnregisterSymmetryObject(SymmetrySync obj)
-    {
-        if (obj != null && activeSymmetryObjects.Contains(obj))
-        {
-            activeSymmetryObjects.Remove(obj);
-            if (activeSymmetryObjects.Count == 0)
+            // 只有当选择的物体与当前源物体不同时才更新
+            if (sourceTransform != Selection.activeTransform)
             {
-                StopListening();
+                sourceTransform = Selection.activeTransform;
+                // 自动查找对称物体
+                bool found = AutoFindSymmetricTransform();
+
+                // 显示查找结果提示
+                if (found)
+                {
+                    ShowNotification(new GUIContent($"已找到对称物体: {targetTransform.name}"));
+                }
+                else
+                {
+                    ShowNotification(new GUIContent("未找到对称物体，请手动指定"));
+                }
+
+                // 清除预览
+                previewData = null;
+                showSyncPreview = false;
+                Repaint(); // 立即刷新窗口
             }
         }
     }
 
-    private static void StartListening()
+    private void OnGUI()
     {
-        if (!isListening)
+        GUILayout.Label("对称同步控制", EditorStyles.boldLabel);
+        EditorGUILayout.Space();
+
+        // 源物体选择
+        EditorGUILayout.LabelField("源物体", EditorStyles.label);
+        sourceTransform = (Transform)EditorGUILayout.ObjectField(
+            sourceTransform, typeof(Transform), true);
+
+        // 目标物体选择
+        EditorGUILayout.LabelField("对称目标物体", EditorStyles.label);
+        targetTransform = (Transform)EditorGUILayout.ObjectField(
+            targetTransform, typeof(Transform), true);
+
+        // 自动查找按钮
+        if (GUILayout.Button("自动查找对称物体") && sourceTransform != null)
         {
-            EditorApplication.hierarchyChanged += OnHierarchyChanged;
-            EditorApplication.update += CheckForChanges;
-            isListening = true;
+            AutoFindSymmetricTransform();
         }
-    }
 
-    private static void StopListening()
-    {
-        if (isListening)
+        EditorGUILayout.Space();
+
+        // 对称设置
+        symmetryAxis = (SymmetryAxis)EditorGUILayout.EnumPopup("对称轴", symmetryAxis);
+        ignorePrefixNumbers = EditorGUILayout.Toggle("忽略前缀数字", ignorePrefixNumbers);
+
+        // 关键词对设置
+        showAdvancedSettings = EditorGUILayout.Foldout(showAdvancedSettings, "对称关键词对设置");
+        if (showAdvancedSettings)
         {
-            EditorApplication.hierarchyChanged -= OnHierarchyChanged;
-            EditorApplication.update -= CheckForChanges;
-            isListening = false;
-            previousStates.Clear();
-        }
-    }
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
-    private static void OnHierarchyChanged()
-    {
-        // 层级变化时清理状态缓存
-        previousStates.Clear();
-    }
-
-    private static Dictionary<Transform, TransformState> previousStates = new Dictionary<Transform, TransformState>();
-
-    private static void CheckForChanges()
-    {
-        if (isProcessingChange) return;
-
-        foreach (var symmetryObj in activeSymmetryObjects.ToArray())
-        {
-            if (symmetryObj == null) continue;
-
-            // 检查所有子对象的变化
-            CheckTransformHierarchy(symmetryObj.transform, symmetryObj);
-        }
-    }
-
-    private static void CheckTransformHierarchy(Transform parent, SymmetrySync symmetrySync)
-    {
-        if (parent == null || symmetrySync == null) return;
-
-        CheckAndSyncTransform(parent, symmetrySync);
-
-        // 递归检查子对象
-        foreach (Transform child in parent)
-        {
-            CheckTransformHierarchy(child, symmetrySync);
-        }
-    }
-
-    private static void CheckAndSyncTransform(Transform target, SymmetrySync symmetrySync)
-    {
-        if (target == null || symmetrySync == null || !symmetrySync.enableSymmetry) return;
-
-        // 保存当前状态
-        TransformState currentState = new TransformState(target);
-
-        // 检查是否有变化
-        if (previousStates.TryGetValue(target, out TransformState previousState))
-        {
-            if (!previousState.Equals(currentState))
+            // 显示现有关键词对
+            for (int i = 0; i < keywordPairs.Count; i++)
             {
-                // 有变化，尝试同步到对称对象
-                SyncToSymmetricTransform(target, symmetrySync);
+                EditorGUILayout.BeginHorizontal();
+                keywordPairs[i].a = EditorGUILayout.TextField(keywordPairs[i].a);
+                keywordPairs[i].b = EditorGUILayout.TextField(keywordPairs[i].b);
+
+                if (GUILayout.Button("-", GUILayout.Width(20)))
+                {
+                    keywordPairs.RemoveAt(i);
+                    break;
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            // 添加新关键词对
+            if (GUILayout.Button("添加关键词对"))
+            {
+                keywordPairs.Add(new SymmetryKeywordPair("", ""));
+            }
+
+            EditorGUILayout.EndVertical();
+        }
+        // 数组处理设置
+        showArraySettings = EditorGUILayout.Foldout(showArraySettings, "数组类型处理设置");
+        if (showArraySettings)
+        {
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField("需要递归处理的数组元素类型:", EditorStyles.miniLabel);
+
+            // 显示现有数组类型
+            for (int i = 0; i < recursiveArrayTypes.Count; i++)
+            {
+                EditorGUILayout.BeginHorizontal();
+                recursiveArrayTypes[i] = EditorGUILayout.TextField(recursiveArrayTypes[i]);
+
+                if (GUILayout.Button("-", GUILayout.Width(20)))
+                {
+                    recursiveArrayTypes.RemoveAt(i);
+                    break;
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            // 添加新数组类型
+            if (GUILayout.Button("添加类型"))
+            {
+                recursiveArrayTypes.Add("");
+            }
+
+            EditorGUILayout.EndVertical();
+        }
+        EditorGUILayout.Space();
+        EditorGUILayout.Separator();
+        EditorGUILayout.Space();
+
+        // 同步控制
+        EditorGUILayout.BeginHorizontal();
+
+        // 预览按钮
+        if (GUILayout.Button("预览同步效果") && CanSync())
+        {
+            GenerateSyncPreview();
+            showSyncPreview = true;
+        }
+
+        // 同步按钮
+        GUI.enabled = CanSync();
+        if (GUILayout.Button("执行对称同步") && CanSync())
+        {
+            PerformSymmetrySync();
+            ShowNotification(new GUIContent("同步完成!"));
+        }
+        GUI.enabled = true;
+
+        EditorGUILayout.EndHorizontal();
+
+        // 显示预览
+        if (showSyncPreview && previewData != null)
+        {
+            EditorGUILayout.Space();
+            GUILayout.Label("同步预览", EditorStyles.boldLabel);
+
+            scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
+
+            // 显示变换预览
+            EditorGUILayout.LabelField("变换同步:", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField($"位置: {previewData.originalPosition} → {previewData.symmetricPosition}");
+            EditorGUILayout.LabelField($"旋转: {previewData.originalRotation.eulerAngles} → {previewData.symmetricRotation.eulerAngles}");
+            EditorGUILayout.LabelField($"缩放: {previewData.originalScale} → {previewData.symmetricScale}");
+
+            // 显示组件同步预览
+            if (previewData.componentChanges.Count > 0)
+            {
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField("组件变化:", EditorStyles.boldLabel);
+
+                foreach (var change in previewData.componentChanges)
+                {
+                    EditorGUILayout.LabelField($"{change.componentType}: {change.propertyName}");
+                    EditorGUILayout.HelpBox($"从 {change.originalValue} 变为 {change.symmetricValue}", MessageType.Info);
+                }
+            }
+
+            EditorGUILayout.EndScrollView();
+        }
+    }
+
+    // 检查是否可以执行同步
+    private bool CanSync()
+    {
+        return sourceTransform != null && targetTransform != null &&
+               sourceTransform != targetTransform;
+    }
+
+    // 自动查找对称物体
+    private bool AutoFindSymmetricTransform()
+    {
+        if (sourceTransform == null) return false;
+
+        string sourceName = sourceTransform.name;
+        if (ignorePrefixNumbers)
+        {
+            sourceName = RemovePrefixNumbers(sourceName);
+        }
+
+        // 尝试用每个关键词对查找对称对象
+        foreach (var pair in keywordPairs)
+        {
+            if (string.IsNullOrEmpty(pair.a) || string.IsNullOrEmpty(pair.b))
+                continue;
+
+            string targetName;
+            bool isASide = sourceName.IndexOf(pair.a, StringComparison.OrdinalIgnoreCase) >= 0;
+            bool isBSide = sourceName.IndexOf(pair.b, StringComparison.OrdinalIgnoreCase) >= 0;
+
+            if (isASide && !isBSide)
+            {
+                targetName = ReplaceFirstOccurrence(sourceName, pair.a, pair.b, StringComparison.OrdinalIgnoreCase);
+            }
+            else if (isBSide && !isASide)
+            {
+                targetName = ReplaceFirstOccurrence(sourceName, pair.b, pair.a, StringComparison.OrdinalIgnoreCase);
+            }
+            else
+            {
+                continue;
+            }
+
+            // 在同一层级查找
+            if (sourceTransform.parent != null)
+            {
+                Transform found = FindInSameHierarchy(sourceTransform.parent, targetName);
+                if (found != null)
+                {
+                    targetTransform = found;
+                    return true;
+                }
+            }
+
+            // 在整个场景查找
+            Transform sceneFound = FindInScene(targetName);
+            if (sceneFound != null && sceneFound != sourceTransform)
+            {
+                targetTransform = sceneFound;
+                return true;
             }
         }
-        else
-        {
-            // 首次记录状态
-            previousStates[target] = currentState;
-        }
+
+        // 如果没找到，清除目标
+        targetTransform = null;
+        return false;
     }
 
-    private static void SyncToSymmetricTransform(Transform target, SymmetrySync symmetrySync)
+    // 生成同步预览
+    private void GenerateSyncPreview()
     {
-        if (isProcessingChange) return;
+        if (!CanSync()) return;
 
-        isProcessingChange = true;
+        previewData = new PreviewData();
 
-        try
-        {
-            Transform symmetricTransform = symmetrySync.FindSymmetricTransform(target);
-            if (symmetricTransform == null) return;
+        // 记录变换预览
+        previewData.originalPosition = sourceTransform.localPosition;
+        previewData.originalRotation = sourceTransform.localRotation;
+        previewData.originalScale = sourceTransform.localScale;
 
-            // 记录对称对象当前状态，防止立即触发反向同步
-            previousStates[symmetricTransform] = new TransformState(symmetricTransform);
+        previewData.symmetricPosition = GetSymmetricVector(sourceTransform.localPosition);
+        previewData.symmetricRotation = GetSymmetricQuaternion(sourceTransform.localRotation);
+        previewData.symmetricScale = sourceTransform.localScale; // 缩放通常不翻转
 
-            // 同步Transform属性（位置、旋转、缩放）
-            Undo.RecordObject(symmetricTransform, "Symmetry Sync Transform");
-
-            // 位置对称
-            symmetricTransform.localPosition = symmetrySync.GetSymmetricVector(target.localPosition);
-
-            // 旋转对称
-            symmetricTransform.localRotation = symmetrySync.GetSymmetricQuaternion(target.localRotation);
-
-            // 缩放通常不需要对称翻转，直接复制
-            symmetricTransform.localScale = target.localScale;
-
-            // 同步所有组件的公共属性
-            SyncComponents(target, symmetricTransform, symmetrySync);
-        }
-        finally
-        {
-            // 更新源对象状态
-            previousStates[target] = new TransformState(target);
-            isProcessingChange = false;
-        }
-    }
-
-    private static void SyncComponents(Transform source, Transform target, SymmetrySync symmetrySync)
-    {
-        Component[] sourceComponents = source.GetComponents<Component>();
-
+        // 记录组件变化预览
+        Component[] sourceComponents = sourceTransform.GetComponents<Component>();
         foreach (var sourceComp in sourceComponents)
         {
             if (sourceComp == null || sourceComp is Transform) continue;
 
-            // 查找目标上的相同类型组件
-            var targetComp = target.GetComponent(sourceComp.GetType());
+            var targetComp = targetTransform.GetComponent(sourceComp.GetType());
             if (targetComp == null) continue;
 
-            // 同步属性
-            SyncComponentProperties(sourceComp, targetComp, symmetrySync);
+            // 检查组件属性变化
+            CheckComponentChanges(sourceComp, targetComp, previewData);
         }
     }
 
-    private static void SyncComponentProperties(Component source, Component target, SymmetrySync symmetrySync)
+    // 执行对称同步
+    private void PerformSymmetrySync()
+    {
+        if (!CanSync()) return;
+
+        Undo.RecordObject(targetTransform, "对称同步变换");
+
+        // 同步变换
+        targetTransform.localPosition = GetSymmetricVector(sourceTransform.localPosition);
+        targetTransform.localRotation = GetSymmetricQuaternion(sourceTransform.localRotation);
+        targetTransform.localScale = sourceTransform.localScale;
+
+        // 同步组件
+        Component[] sourceComponents = sourceTransform.GetComponents<Component>();
+        foreach (var sourceComp in sourceComponents)
+        {
+            if (sourceComp == null || sourceComp is Transform) continue;
+
+            var targetComp = targetTransform.GetComponent(sourceComp.GetType());
+            if (targetComp == null) continue;
+
+            Undo.RecordObject(targetComp, $"对称同步 {sourceComp.GetType().Name}");
+            SyncComponentProperties(sourceComp, targetComp);
+        }
+
+        // 刷新场景视图
+        SceneView.RepaintAll();
+    }
+
+    // 同步组件属性
+    private void SyncComponentProperties(Component source, Component target)
     {
         Type type = source.GetType();
 
@@ -194,37 +366,35 @@ public class SymmetrySyncEditor : Editor
         if (type.Assembly == typeof(Editor).Assembly)
             return;
 
-        // 获取所有公共属性和字段
+        // 获取所有可读写的公共属性
         PropertyInfo[] properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.CanRead && p.CanWrite && !p.IsSpecialName).ToArray();
+            .Where(p => p.CanRead && p.CanWrite && !p.IsSpecialName &&
+                       p.Name != "name" && p.Name != "gameObject").ToArray();
 
+        // 获取公共字段
         FieldInfo[] fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance)
-            .Where(f => !f.IsSpecialName).ToArray();
-
-        if (properties.Length == 0 && fields.Length == 0)
-            return;
-
-        Undo.RecordObject(target, $"Symmetry Sync {type.Name}");
+            .Where(f => !f.IsSpecialName && f.Name != "m_Name" && f.Name != "m_GameObject").ToArray();
 
         // 同步属性
         foreach (var prop in properties)
         {
-            SyncProperty(source, target, prop, symmetrySync);
+            SyncProperty(source, target, prop);
         }
 
         // 同步字段
         foreach (var field in fields)
         {
-            SyncField(source, target, field, symmetrySync);
+            SyncField(source, target, field);
         }
     }
 
-    private static void SyncProperty(Component source, Component target, PropertyInfo prop, SymmetrySync symmetrySync)
+    // 同步单个属性
+    private void SyncProperty(Component source, Component target, PropertyInfo prop)
     {
         try
         {
             object value = prop.GetValue(source);
-            object symmetricValue = GetSymmetricValue(value, symmetrySync);
+            object symmetricValue = GetSymmetricValue(value);
             prop.SetValue(target, symmetricValue);
         }
         catch
@@ -233,12 +403,13 @@ public class SymmetrySyncEditor : Editor
         }
     }
 
-    private static void SyncField(Component source, Component target, FieldInfo field, SymmetrySync symmetrySync)
+    // 同步单个字段
+    private void SyncField(Component source, Component target, FieldInfo field)
     {
         try
         {
             object value = field.GetValue(source);
-            object symmetricValue = GetSymmetricValue(value, symmetrySync);
+            object symmetricValue = GetSymmetricValue(value);
             field.SetValue(target, symmetricValue);
         }
         catch
@@ -247,78 +418,301 @@ public class SymmetrySyncEditor : Editor
         }
     }
 
-    private static object GetSymmetricValue(object value, SymmetrySync symmetrySync)
+    // 检查组件变化（用于预览）
+    private void CheckComponentChanges(Component source, Component target, PreviewData preview)
+    {
+        Type type = source.GetType();
+
+        if (type.Assembly == typeof(Editor).Assembly)
+            return;
+
+        // 检查属性变化
+        PropertyInfo[] properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.CanRead && p.CanWrite && !p.IsSpecialName &&
+                       p.Name != "name" && p.Name != "gameObject").ToArray();
+
+        foreach (var prop in properties)
+        {
+            try
+            {
+                object originalValue = prop.GetValue(source);
+                object targetValue = prop.GetValue(target);
+                object symmetricValue = GetSymmetricValue(originalValue);
+
+                if (!AreObjectsEqual(targetValue, symmetricValue))
+                {
+                    preview.componentChanges.Add(new ComponentChangeInfo
+                    {
+                        componentType = type.Name,
+                        propertyName = prop.Name,
+                        originalValue = originalValue,
+                        symmetricValue = symmetricValue
+                    });
+                }
+            }
+            catch
+            {
+                // 忽略无法访问的属性
+            }
+        }
+
+        // 检查字段变化
+        FieldInfo[] fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance)
+            .Where(f => !f.IsSpecialName && f.Name != "m_Name" && f.Name != "m_GameObject").ToArray();
+
+        foreach (var field in fields)
+        {
+            try
+            {
+                object originalValue = field.GetValue(source);
+                object targetValue = field.GetValue(target);
+                object symmetricValue = GetSymmetricValue(originalValue);
+
+                if (!AreObjectsEqual(targetValue, symmetricValue))
+                {
+                    preview.componentChanges.Add(new ComponentChangeInfo
+                    {
+                        componentType = type.Name,
+                        propertyName = field.Name,
+                        originalValue = originalValue,
+                        symmetricValue = symmetricValue
+                    });
+                }
+            }
+            catch
+            {
+                // 忽略无法访问的字段
+            }
+        }
+    }
+    // 获取对称值
+    private object GetSymmetricValue(object value)
     {
         if (value == null) return null;
 
-        // 处理Vector3类型，进行对称转换
         if (value is Vector3 vector3)
-        {
-            return symmetrySync.GetSymmetricVector(vector3);
-        }
-        // 处理Quaternion类型，进行对称转换
+            return GetSymmetricVector(vector3);
         else if (value is Quaternion quaternion)
-        {
-            return symmetrySync.GetSymmetricQuaternion(quaternion);
-        }
-        // 处理Vector2类型
+            return GetSymmetricQuaternion(quaternion);
         else if (value is Vector2 vector2)
         {
-            if (symmetrySync.symmetryAxis == SymmetrySync.SymmetryAxis.X)
+            if (symmetryAxis == SymmetryAxis.X)
                 return new Vector2(-vector2.x, vector2.y);
-            else if (symmetrySync.symmetryAxis == SymmetrySync.SymmetryAxis.Y)
+            else if (symmetryAxis == SymmetryAxis.Y)
                 return new Vector2(vector2.x, -vector2.y);
         }
-        // 处理Vector4类型
         else if (value is Vector4 vector4)
         {
-            if (symmetrySync.symmetryAxis == SymmetrySync.SymmetryAxis.X)
+            if (symmetryAxis == SymmetryAxis.X)
                 return new Vector4(-vector4.x, vector4.y, vector4.z, vector4.w);
-            else if (symmetrySync.symmetryAxis == SymmetrySync.SymmetryAxis.Y)
+            else if (symmetryAxis == SymmetryAxis.Y)
                 return new Vector4(vector4.x, -vector4.y, vector4.z, vector4.w);
-            else if (symmetrySync.symmetryAxis == SymmetrySync.SymmetryAxis.Z)
+            else if (symmetryAxis == SymmetryAxis.Z)
                 return new Vector4(vector4.x, vector4.y, -vector4.z, vector4.w);
         }
-        // 其他类型直接复制
+        // 处理自定义类数组
+        else if (value.GetType().IsArray)
+        {
+            Type elementType = value.GetType().GetElementType();
+            // 检查是否需要递归处理
+            bool needRecursive = recursiveArrayTypes.Exists(t =>
+                string.Equals(t, elementType.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (!needRecursive)
+                return value; // 不需要递归处理的数组直接复制
+
+            // 递归处理数组元素
+            Array sourceArray = (Array)value;
+            Array targetArray = Array.CreateInstance(elementType, sourceArray.Length);
+
+            for (int i = 0; i < sourceArray.Length; i++)
+            {
+                targetArray.SetValue(GetSymmetricValue(sourceArray.GetValue(i)), i);
+            }
+            return targetArray;
+        }
+        // 处理自定义类（如SphereCollider）
+        else if (!value.GetType().IsPrimitive && !value.GetType().IsEnum)
+        {
+            object symmetricObject = Activator.CreateInstance(value.GetType());
+            FieldInfo[] fields = value.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance);
+
+            foreach (var field in fields)
+            {
+                object fieldValue = field.GetValue(value);
+                field.SetValue(symmetricObject, GetSymmetricValue(fieldValue));
+            }
+            return symmetricObject;
+        }
+
         return value;
     }
-
-    // 用于存储和比较Transform状态的辅助类
-    private class TransformState
+    // 添加对象比较辅助方法
+    private bool AreObjectsEqual(object a, object b)
     {
-        public Vector3 localPosition;
-        public Quaternion localRotation;
-        public Vector3 localScale;
+        if (a == null && b == null) return true;
+        if (a == null || b == null) return false;
 
-        public TransformState(Transform transform)
+        // 处理数组比较
+        if (a.GetType().IsArray && b.GetType().IsArray)
         {
-            localPosition = transform.localPosition;
-            localRotation = transform.localRotation;
-            localScale = transform.localScale;
+            Array arrA = (Array)a;
+            Array arrB = (Array)b;
+
+            if (arrA.Length != arrB.Length) return false;
+
+            for (int i = 0; i < arrA.Length; i++)
+            {
+                if (!AreObjectsEqual(arrA.GetValue(i), arrB.GetValue(i)))
+                    return false;
+            }
+            return true;
         }
 
-        public bool Equals(TransformState other)
-        {
-            if (other == null) return false;
-            return Approximately(localPosition, other.localPosition) &&
-                   Approximately(localRotation, other.localRotation) &&
-                   Approximately(localScale, other.localScale);
-        }
+        // 处理Vector等Unity类型
+        if (a is Vector3 vecA && b is Vector3 vecB)
+            return Vector3.Equals(vecA, vecB);
+        if (a is Quaternion quatA && b is Quaternion quatB)
+            return Quaternion.Equals(quatA, quatB);
+        if (a is Vector2 vec2A && b is Vector2 vec2B)
+            return Vector2.Equals(vec2A, vec2B);
 
-        // 近似比较，考虑浮点数精度问题
-        private bool Approximately(Vector3 a, Vector3 b)
+        // 基本类型比较
+        return a.Equals(b);
+    }
+    // 计算对称向量
+    private Vector3 GetSymmetricVector(Vector3 original)
+    {
+        switch (symmetryAxis)
         {
-            return Mathf.Approximately(a.x, b.x) &&
-                   Mathf.Approximately(a.y, b.y) &&
-                   Mathf.Approximately(a.z, b.z);
+            case SymmetryAxis.X:
+                return new Vector3(-original.x, original.y, original.z);
+            case SymmetryAxis.Y:
+                return new Vector3(original.x, -original.y, original.z);
+            case SymmetryAxis.Z:
+                return new Vector3(original.x, original.y, -original.z);
+            default:
+                return original;
         }
+    }
 
-        private bool Approximately(Quaternion a, Quaternion b)
+    // 计算对称四元数
+    private Quaternion GetSymmetricQuaternion(Quaternion original)
+    {
+        switch (symmetryAxis)
         {
-            return Mathf.Approximately(a.x, b.x) &&
-                   Mathf.Approximately(a.y, b.y) &&
-                   Mathf.Approximately(a.z, b.z) &&
-                   Mathf.Approximately(a.w, b.w);
+            case SymmetryAxis.X:
+                return new Quaternion(-original.x, original.y, original.z, -original.w);
+            case SymmetryAxis.Y:
+                return new Quaternion(original.x, -original.y, original.z, -original.w);
+            case SymmetryAxis.Z:
+                return new Quaternion(original.x, original.y, -original.z, -original.w);
+            default:
+                return original;
         }
+    }
+
+    // 去除前缀数字
+    private string RemovePrefixNumbers(string originalName)
+    {
+        if (string.IsNullOrEmpty(originalName))
+            return originalName;
+
+        return Regex.Replace(originalName, @"^\d+[.!_]", "", RegexOptions.IgnoreCase);
+    }
+
+    // 替换首次出现的字符串
+    private string ReplaceFirstOccurrence(string source, string oldValue, string newValue, StringComparison comparisonType)
+    {
+        int index = source.IndexOf(oldValue, comparisonType);
+        if (index < 0)
+            return source;
+
+        return source.Remove(index, oldValue.Length).Insert(index, newValue);
+    }
+
+    // 在同一层级查找物体
+    private Transform FindInSameHierarchy(Transform parent, string name)
+    {
+        foreach (Transform child in parent)
+        {
+            string cleanName = ignorePrefixNumbers ? RemovePrefixNumbers(child.name) : child.name;
+            if (cleanName.Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                return child;
+            }
+        }
+        return null;
+    }
+
+    // 在场景中查找物体
+    private Transform FindInScene(string name)
+    {
+        foreach (var root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
+        {
+            Transform found = FindInChildren(root.transform, name);
+            if (found != null)
+                return found;
+        }
+        return null;
+    }
+
+    // 在子物体中查找
+    private Transform FindInChildren(Transform parent, string name)
+    {
+        string cleanParentName = ignorePrefixNumbers ? RemovePrefixNumbers(parent.name) : parent.name;
+        if (cleanParentName.Equals(name, StringComparison.OrdinalIgnoreCase))
+            return parent;
+
+        foreach (Transform child in parent)
+        {
+            Transform found = FindInChildren(child, name);
+            if (found != null)
+                return found;
+        }
+        return null;
+    }
+
+    // 对称轴枚举
+    public enum SymmetryAxis
+    {
+        X, Y, Z
+    }
+
+    // 关键词对类
+    [Serializable]
+    public class SymmetryKeywordPair
+    {
+        public string a;
+        public string b;
+
+        public SymmetryKeywordPair(string a, string b)
+        {
+            this.a = a;
+            this.b = b;
+        }
+    }
+
+    // 预览数据类
+    private class PreviewData
+    {
+        public Vector3 originalPosition;
+        public Quaternion originalRotation;
+        public Vector3 originalScale;
+
+        public Vector3 symmetricPosition;
+        public Quaternion symmetricRotation;
+        public Vector3 symmetricScale;
+
+        public List<ComponentChangeInfo> componentChanges = new List<ComponentChangeInfo>();
+    }
+
+    // 组件变化信息类
+    private class ComponentChangeInfo
+    {
+        public string componentType;
+        public string propertyName;
+        public object originalValue;
+        public object symmetricValue;
     }
 }
