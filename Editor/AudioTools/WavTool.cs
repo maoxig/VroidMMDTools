@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using UnityEngine;
 
-namespace SimblendTools
+namespace AudioTools
 {
     public static class WavUtility
     {
