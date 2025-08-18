@@ -3,7 +3,7 @@ using UnityEditor;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace MMDShader2MToon
+namespace VroidMMDTools.ShaderTools
 {
     /// <summary>
     /// 扩展Material类，提供常用的属性获取方法

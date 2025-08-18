@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using UnityEngine;
 
-namespace AudioTools
+namespace VroidMMDTools.AudioTools
 {
     public static class WavUtility
     {

@@ -1,9 +1,24 @@
+#define USE_VROID_MOD
+
+#if USE_VROID_MOD
+using VRoidModSpringBones;  // 仅在VROID模式下引用
+using MySpringBoneColliderGroup = VRoidModSpringBones.VRoidSpringBoneColliderGroup;
+using MySpringBone = VRoidModSpringBones.VRoidSpringBone;
+#elif USE_VRM
+using VRM;  // 仅在VRM模式下引用
+using MySpringBoneColliderGroup = VRM.VRMSpringBoneColliderGroup;
+using MySpringBone = VRM.VRMSpringBone;
+#else
+// 未定义符号时提示用户配置
+#error 请定义 USE_VROID_MOD 或 USE_VRM 符号
+#endif
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
-using VRoidModSpringBones;
+
 
 namespace VRMSpringAutoCreator
 {
@@ -353,28 +368,36 @@ namespace VRMSpringAutoCreator
 
         private static GameObject GetOrCreateSpringManager(Transform root)
         {
-            var manager = root.Find("SpringManager")?.gameObject;
+#if USE_VROID_MOD
+            string managerName = "SpringManager"; // VROID模式：用原来的SpringManager
+#elif USE_VRM
+    string managerName = "secondary";    // VRM模式：用VRM常见的secondary节点
+#else
+            string managerName = "secondary";
+#endif
+
+            var manager = root.Find(managerName)?.gameObject;
             if (manager == null)
             {
-                manager = new GameObject("SpringManager");
+                manager = new GameObject(managerName);
                 manager.transform.SetParent(root, false);
                 manager.transform.localPosition = Vector3.zero;
                 manager.transform.localRotation = Quaternion.identity;
-                Undo.RegisterCreatedObjectUndo(manager, "Create SpringManager");
+                Undo.RegisterCreatedObjectUndo(manager, $"Create {managerName}");
             }
             return manager;
         }
 
         private static void ClearExistingSpringBones(GameObject springManager)
         {
-            foreach (var springBone in springManager.GetComponents<VRoidSpringBone>())
+            foreach (var springBone in springManager.GetComponents<MySpringBone>())
                 Undo.DestroyObjectImmediate(springBone);
         }
 
-        private static Dictionary<string, VRoidSpringBoneColliderGroup> CreateColliders(
+        private static Dictionary<string, MySpringBoneColliderGroup> CreateColliders(
             Transform root, List<Transform> allBones, Animator animator, Dictionary<string, BoneColliderConfig> colliderConfigs)
         {
-            var colliderGroups = new Dictionary<string, VRoidSpringBoneColliderGroup>();
+            var colliderGroups = new Dictionary<string, MySpringBoneColliderGroup>();
 
             foreach (var (part, partConfig) in colliderConfigs)
             {
@@ -390,18 +413,18 @@ namespace VRMSpringAutoCreator
 
                 foreach (var bone in targetBones)
                 {
-                    var colliderGroup = bone.GetComponent<VRoidSpringBoneColliderGroup>();
+                    var colliderGroup = bone.GetComponent<MySpringBoneColliderGroup>();
                     bool isNewComponent = colliderGroup == null;
                     if (isNewComponent)
                     {
-                        colliderGroup = bone.gameObject.AddComponent<VRoidSpringBoneColliderGroup>();
+                        colliderGroup = bone.gameObject.AddComponent<MySpringBoneColliderGroup>();
                         Undo.RegisterCreatedObjectUndo(colliderGroup, "Add Collider Group");
                     }
 
                     float scaleFactor = Mathf.Max(bone.lossyScale.x, bone.lossyScale.y, bone.lossyScale.z);
                     float baseRadius = partConfig.baseRadius * scaleFactor;
 
-                    var spheres = new List<VRoidSpringBoneColliderGroup.SphereCollider>();
+                    var spheres = new List<MySpringBoneColliderGroup.SphereCollider>();
                     // 仅手臂碰撞体使用±X偏移（按左右区分）
                     if (part == "arm")
                     {
@@ -415,7 +438,7 @@ namespace VRMSpringAutoCreator
                             // 第二个碰撞体偏移±X=0.1，其他碰撞体偏移0
                             float xOffset = (i == 1) ? 0.1f * xSign : 0f;
                             float radiusScale = i < partConfig.radiusScales.Count ? partConfig.radiusScales[i] : 1f;
-                            spheres.Add(new VRoidSpringBoneColliderGroup.SphereCollider
+                            spheres.Add(new MySpringBoneColliderGroup.SphereCollider
                             {
                                 Offset = new Vector3(xOffset, 0f, 0f), // 手臂横向偏移（X轴）
                                 Radius = baseRadius * radiusScale
@@ -428,7 +451,7 @@ namespace VRMSpringAutoCreator
                         {
                             float yOffset = i < partConfig.yOffsets.Count ? partConfig.yOffsets[i] : 0f;
                             float radiusScale = i < partConfig.radiusScales.Count ? partConfig.radiusScales[i] : 1f;
-                            spheres.Add(new VRoidSpringBoneColliderGroup.SphereCollider
+                            spheres.Add(new MySpringBoneColliderGroup.SphereCollider
                             {
                                 Offset = new Vector3(0, yOffset, 0),
                                 Radius = baseRadius * radiusScale
@@ -451,7 +474,7 @@ namespace VRMSpringAutoCreator
         }
 
         private static void CreateSpringBones(GameObject springManager, List<Transform> allBones,
-            Dictionary<string, VRoidSpringBoneColliderGroup> colliderGroups, Animator animator, Dictionary<string, BoneColliderConfig> springBoneConfigs)
+            Dictionary<string, MySpringBoneColliderGroup> colliderGroups, Animator animator, Dictionary<string, BoneColliderConfig> springBoneConfigs)
         {
 
             foreach (var (part, partConfig) in springBoneConfigs)
@@ -462,7 +485,7 @@ namespace VRMSpringAutoCreator
                 var rootBones = GetRootBones(targetBones);
                 if (!rootBones.Any()) continue;
 
-                var springBone = springManager.AddComponent<VRoidSpringBone>();
+                var springBone = springManager.AddComponent<MySpringBone>();
                 Undo.RegisterCreatedObjectUndo(springBone, "Add Spring Bone");
                 springBone.RootBones = rootBones.ToList();
                 //springBone.name = $"{char.ToUpper(part[0]) + part.Substring(1)}Spring"; // 仅设置组件名称
@@ -549,8 +572,8 @@ namespace VRMSpringAutoCreator
             return bones;
         }
 
-        private static IEnumerable<VRoidSpringBoneColliderGroup> GetRelevantColliders(
-            Dictionary<string, VRoidSpringBoneColliderGroup> colliderGroups, string[] relevantParts)
+        private static IEnumerable<MySpringBoneColliderGroup> GetRelevantColliders(
+            Dictionary<string, MySpringBoneColliderGroup> colliderGroups, string[] relevantParts)
         {
             foreach (var (path, group) in colliderGroups)
             {

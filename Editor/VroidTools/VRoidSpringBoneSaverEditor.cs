@@ -1,3 +1,19 @@
+#define USE_VROID_MOD
+
+#if USE_VROID_MOD
+using VRoidModSpringBones;  // 仅在VROID模式下引用
+using MySpringBoneColliderGroup = VRoidModSpringBones.VRoidSpringBoneColliderGroup;
+using MySpringBone = VRoidModSpringBones.VRoidSpringBone;
+#elif USE_VRM
+using VRM;  // 仅在VRM模式下引用
+using MySpringBoneColliderGroup = VRM.VRMSpringBoneColliderGroup;
+using MySpringBone = VRM.VRMSpringBone;
+#else
+// 未定义符号时提示用户配置
+#error 请定义 USE_VROID_MOD 或 USE_VRM 符号
+#endif
+
+#if USE_VROID_MOD // VRM自带了保存动骨，因此不需要启用
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,11 +23,10 @@ using UnityEngine;
 
 using System.Linq;
 
-using VRoidModSpringBones;
 
 namespace VRMSpringAutoCreator
 {
-    
+
     internal static class VRoidSpringBoneSaverEditor
     {
 
@@ -32,7 +47,7 @@ namespace VRMSpringAutoCreator
         {
             if (Selection.activeGameObject == null) return false;
             var springManager = FindSpringManager(Selection.activeGameObject.transform);
-            return springManager != null && springManager.GetComponent<VRoidSpringBone>() != null;
+            return springManager != null && springManager.GetComponent<MySpringBone>() != null;
         }
 
         public static void SaveSpringBoneToJson()
@@ -47,7 +62,7 @@ namespace VRMSpringAutoCreator
                 return;
             }
 
-            var springBones = springManager.GetComponents<VRoidSpringBone>();
+            var springBones = springManager.GetComponents<MySpringBone>();
             if (springBones.Length == 0)
             {
                 EditorUtility.DisplayDialog("提示", "SpringManager中没有VRoidSpringBone组件", "确定");
@@ -114,7 +129,7 @@ namespace VRMSpringAutoCreator
             var manager = root.FindInChilds2("SpringManager", false)?.gameObject;
             if (manager != null) return manager;
 
-            var springBones = root.GetComponentsInChildren<VRoidSpringBone>();
+            var springBones = root.GetComponentsInChildren<MySpringBone>();
             return springBones.Length > 0 ? springBones[0].gameObject : null;
         }
 
@@ -158,7 +173,7 @@ namespace VRMSpringAutoCreator
 
                 var springManager = GetOrCreateSpringManager(rootObj.transform);
                 // 清空现有组件（确保重新加载）
-                foreach (var existing in springManager.GetComponents<VRoidSpringBone>())
+                foreach (var existing in springManager.GetComponents<MySpringBone>())
                 {
                     UnityEngine.Object.DestroyImmediate(existing);
                 }
@@ -172,7 +187,7 @@ namespace VRMSpringAutoCreator
                     JsonUtility.FromJsonOverwrite(springBoneJson, helper); // 反序列化数据到实例
 
                     // 创建并配置VRoidSpringBone组件
-                    var springBone = springManager.AddComponent<VRoidSpringBone>();
+                    var springBone = springManager.AddComponent<MySpringBone>();
                     springBone.m_stiffnessForce = helper.m_stiffnessForce;
                     springBone.m_gravityPower = helper.m_gravityPower;
                     springBone.m_gravityDir = helper.m_gravityDir;
@@ -197,7 +212,7 @@ namespace VRMSpringAutoCreator
                     }
 
                     // 设置碰撞体组
-                    var colliderGroups = new List<VRoidSpringBoneColliderGroup>();
+                    var colliderGroups = new List<MySpringBoneColliderGroup>();
                     foreach (var colliderStr in helper.ColliderGroups)
                     {
                         var parts = colliderStr.Split('=');
@@ -215,10 +230,10 @@ namespace VRMSpringAutoCreator
                         }
 
                         // 添加或获取碰撞体组件
-                        var colliderGroup = colliderTransform.GetComponent<VRoidSpringBoneColliderGroup>();
+                        var colliderGroup = colliderTransform.GetComponent<MySpringBoneColliderGroup>();
                         if (colliderGroup == null)
                         {
-                            colliderGroup = colliderTransform.gameObject.AddComponent<VRoidSpringBoneColliderGroup>();
+                            colliderGroup = colliderTransform.gameObject.AddComponent<MySpringBoneColliderGroup>();
                         }
 
                         // 配置碰撞体参数
@@ -230,7 +245,7 @@ namespace VRMSpringAutoCreator
                                 if (paramParts.Length != 2) return null;
                                 var offsetParts = paramParts[0].Split(',');
                                 if (offsetParts.Length != 3) return null;
-                                return new VRoidSpringBoneColliderGroup.SphereCollider
+                                return new MySpringBoneColliderGroup.SphereCollider
                                 {
                                     Offset = new Vector3(
                                         float.Parse(offsetParts[0]),
@@ -293,3 +308,4 @@ namespace VRMSpringAutoCreator
     }
 
 }
+#endif

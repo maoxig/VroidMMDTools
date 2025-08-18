@@ -5,7 +5,7 @@ using System.Diagnostics;
 using Debug = UnityEngine.Debug;
 using System.Linq;
 
-namespace AudioTools
+namespace VroidMMDTools.AudioTools
 {
     public class AudioEditor : EditorWindow
     {

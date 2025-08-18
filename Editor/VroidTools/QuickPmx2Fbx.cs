@@ -1,3 +1,4 @@
+#if USE_QUICK_PMX
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -633,3 +634,4 @@ namespace AnimConverter.Editor.VroidTools
         }
     }
 }
+#endif

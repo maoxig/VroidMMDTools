@@ -1030,18 +1030,18 @@ public class MToonTolilToon : EditorWindow
             Shader lilToonTransparentShader = Shader.Find("Hidden/lilToonTransparent");
             if (hasOutline)
             {
-            lilToonTransparentShader = Shader.Find("Hidden/lilToonTransparentOutline");
+                lilToonTransparentShader = Shader.Find("Hidden/lilToonTransparentOutline");
             }
             if (lilToonTransparentShader == null)
             {
-            Debug.LogError("未找到lilToonTransparent相关着色器！请导入lilToonTransparent。");
+                Debug.LogError("未找到lilToonTransparent相关着色器！请导入lilToonTransparent。");
             }
             else
             {
-            target.shader = lilToonTransparentShader;
-            target.SetFloat("_Cutoff", 0.001f);
-            target.SetInt("_ZWrite", source.HasProperty("_TransparentWithZWrite") ? source.GetInt("_TransparentWithZWrite") : 1);
-            target.renderQueue = 3000 + renderQueueOffset;
+                target.shader = lilToonTransparentShader;
+                target.SetFloat("_Cutoff", 0.001f);
+                target.SetInt("_ZWrite", source.HasProperty("_TransparentWithZWrite") ? source.GetInt("_TransparentWithZWrite") : 1);
+                target.renderQueue = 3000 + renderQueueOffset;
             }
         }
         else if (isCutout)
@@ -1049,18 +1049,18 @@ public class MToonTolilToon : EditorWindow
             Shader lilToonCutoutShader = Shader.Find("Hidden/lilToonCutout");
             if (hasOutline)
             {
-            lilToonCutoutShader = Shader.Find("Hidden/lilToonCutoutOutline");
+                lilToonCutoutShader = Shader.Find("Hidden/lilToonCutoutOutline");
             }
             if (lilToonCutoutShader == null)
             {
-            Debug.LogError("未找到lilToonCutout相关着色器！请导入lilToonCutout。");
+                Debug.LogError("未找到lilToonCutout相关着色器！请导入lilToonCutout。");
             }
             else
             {
-            target.shader = lilToonCutoutShader;
-            target.SetFloat("_Cutoff", source.HasProperty("_Cutoff") ? source.GetFloat("_Cutoff") : 0.5f);
-            target.SetInt("_ZWrite", 1);
-            target.renderQueue = 2450 + renderQueueOffset;
+                target.shader = lilToonCutoutShader;
+                target.SetFloat("_Cutoff", source.HasProperty("_Cutoff") ? source.GetFloat("_Cutoff") : 0.5f);
+                target.SetInt("_ZWrite", 1);
+                target.renderQueue = 2450 + renderQueueOffset;
             }
         }
         else
@@ -1069,20 +1069,20 @@ public class MToonTolilToon : EditorWindow
             Shader targetShader = Shader.Find("lilToon");
             if (hasOutline)
             {
-            targetShader = Shader.Find("Hidden/lilToonMultiOutline");
-            if (targetShader == null)
-            {
-                Debug.LogError("未找到lilToonMultiOutline着色器！请导入lilToonMultiOutline。");
-            }
+                targetShader = Shader.Find("Hidden/lilToonMultiOutline");
+                if (targetShader == null)
+                {
+                    Debug.LogError("未找到lilToonMultiOutline着色器！请导入lilToonMultiOutline。");
+                }
             }
             if (targetShader != null)
             {
-            target.shader = targetShader;
-            target.SetInt("_ZWrite", 1);
-            target.renderQueue = 2000 + renderQueueOffset;
+                target.shader = targetShader;
+                target.SetInt("_ZWrite", 1);
+                target.renderQueue = 2000 + renderQueueOffset;
             }
         }
-        }
+    }
     // 将lilToon材质属性映射并复制到MToon10材质
     private void MapAndCopyPropertiesToMToon10FromLilToon(Material source, Material target)
     {
@@ -1164,7 +1164,7 @@ public class MToonTolilToon : EditorWindow
         {
             target.SetFloat("_ShadingToonyFactor", source.GetFloat("_ShadowStrength"));
         }
-    
+
 
         // 法线贴图
         if (source.HasProperty("_BumpMap") && target.HasProperty("_BumpMap"))
