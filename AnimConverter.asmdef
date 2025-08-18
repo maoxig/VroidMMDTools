@@ -1,11 +1,12 @@
 {
 	"name": "AnimConverter",
 	"rootNamespace": "",
-	"references": [ 
+	"references": [
 		"VRoidModSpringBones",
 		"UnityEngine",
 		"UnityEditor",
-		"MMD"
+		"MMD",
+		"VRM"
 	],
 	"includePlatforms": [],
 	"excludePlatforms": [],
