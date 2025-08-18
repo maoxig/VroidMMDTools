@@ -20,7 +20,7 @@ public class MToonTolilToon : EditorWindow
     private static List<Material> createdMaterials = new List<Material>();
     private static GameObject copiedObject;
 
-    [MenuItem("Tools/「MToon⇔lilToon」")]
+    [MenuItem("ShaderTools/「MToon⇔lilToon」")]
     public static void ShowWindow()
     {
         GetWindow<MToonTolilToon>("MToon ⇔ lilToon Converter");

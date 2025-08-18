@@ -60,7 +60,7 @@ public static class MaterialExtension
             public int defaultCullMode = 2; // Back
         }
 
-        [MenuItem("Tools/MMD to MToon Converter")]
+        [MenuItem("ShaderTools/MMD to MToon Converter")]
         private static void ShowWindow()
         {
             var window = GetWindow<MMDToMTOONConverter>("MMD to MToon Converter");

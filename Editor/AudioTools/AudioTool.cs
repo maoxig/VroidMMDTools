@@ -45,7 +45,7 @@ namespace AudioTools
         private float viewLength = 0f; // 背景显示时长
         private float horizontalScroll = 0f; // 水平滑动位置（像素）
 
-        [MenuItem("Tools/音频编辑器")]
+        [MenuItem("MMD for Unity/音频编辑器", false, 100)]
         public static void ShowWindow()
         {
             AudioEditor window = GetWindow<AudioEditor>("音频编辑器");

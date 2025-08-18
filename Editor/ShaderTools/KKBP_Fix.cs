@@ -37,14 +37,14 @@ namespace VRoidTools
         private bool addOutlineToOpaqueMaterials = false; // 开关
         private float outlineWidth = 0.02f; // 描边宽度（默认0.02）
 
-        [MenuItem("Assets/Tools/恋活配置为MToon", false, 10)]
+        [MenuItem("Assets/ShaderTools/恋活配置为MToon", false, 10)]
         public static void SetupFromContextMenu()
         {
             var window = GetWindow<VRoidMToonMaterialSetup>("恋活配置为MToon");
             window.TryGetSelectedFbxPath();
         }
 
-        [MenuItem("Tools/恋活配置为MToon")]
+        [MenuItem("ShaderTools/恋活配置为MToon")]
         public static void ShowWindow()
         {
             var window = GetWindow<VRoidMToonMaterialSetup>("恋活配置为MToon");
@@ -116,7 +116,7 @@ namespace VRoidTools
             else
             {
                 EditorGUILayout.HelpBox("请在Project窗口中选中一个FBX模型文件", MessageType.Info);
-                EditorGUILayout.LabelField("提示：选中FBX文件后可右键选择 'VRoidTools/配置MToon材质' 快速启动", EditorStyles.miniLabel);
+                EditorGUILayout.LabelField("提示：选中FBX文件后可右键选择 'ShaderTools/配置MToon材质' 快速启动", EditorStyles.miniLabel);
             }
 
             GUILayout.Space(15);

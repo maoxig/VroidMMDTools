@@ -13,10 +13,10 @@ public class ModelProcessorWindow : EditorWindow
     // MMD日语形态键相关字符（aiueo对应的日语字符）
     private string[] mmdBlendShapeNames = new string[] { "あ", "い", "う", "え", "お", "ア", "イ", "ウ", "エ", "オ" };
 
-    [MenuItem("VRoidTools/模型处理器")]
+    [MenuItem("VRoidTools/模型形态键处理器")]
     public static void ShowWindow()
     {
-        GetWindow<ModelProcessorWindow>("模型处理器");
+        GetWindow<ModelProcessorWindow>("模型形态键处理器");
     }
 
     private void OnEnable()

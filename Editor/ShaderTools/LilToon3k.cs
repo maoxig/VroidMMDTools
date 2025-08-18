@@ -2,7 +2,7 @@ using UnityEditor;
 using UnityEngine;
 public class SetLilToonRenderQueue : EditorWindow
 {
-    [MenuItem("Tools/Set LilToon Render Queue to 3000")]
+    [MenuItem("ShaderTools/Set LilToon Render Queue to 3000")]
     public static void SetRenderQueue()
     {
         // 获取当前选中的GameObject
