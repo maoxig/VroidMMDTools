@@ -18,7 +18,7 @@ public class SymmetrySyncWindow : EditorWindow
     {
         new SymmetryKeywordPair ("Left", "Right"),
         new SymmetryKeywordPair ("左", "右"),
-        new SymmetryKeywordPair ("L", "R"),
+        new SymmetryKeywordPair ("L_", "R_"),
         new SymmetryKeywordPair ("左側", "右側"),
         new SymmetryKeywordPair ("左の", "右の")
     };
@@ -28,19 +28,103 @@ public class SymmetrySyncWindow : EditorWindow
 {
     "SphereCollider" // 默认包含VRoid碰撞体类
 };
-    // 面板状态
-    private Vector2 scrollPosition;
-    private bool showAdvancedSettings;
-    private bool showSyncPreview;
+    // 匹配模式枚举
+    public enum MatchMode
+    {
+        Mixed,       // 混合匹配：先骨骼匹配，失败再名称匹配
+        NameOnly,    // 名称匹配：仅使用原关键词逻辑
+        BoneOnly     // 骨骼匹配：仅基于骨骼层级与结构匹配
+    }
 
-    // 预览数据
-    private PreviewData previewData;
+    // 2. 添加Transform同步控制选项
+    private bool modifyTransform = false; // 是否修改Transform
+    private bool modifyComponents = true; // 是否修改组件
+
+    private bool autoCreateMissingComponents = true; // 是否自动创建缺失组件
+
+    private List<Type> excludedComponentTypes = new List<Type> // 排除的组件类型
+{
+    typeof(Transform),
+    typeof(Animator),
+    typeof(SkinnedMeshRenderer),
+    typeof(MeshFilter),
+    typeof(MeshRenderer)
+};
+
+    // 骨骼匹配相关字段
+    private MatchMode currentMatchMode = MatchMode.Mixed;
+
+    // Humanoid骨骼对称映射表
+    private static Dictionary<HumanBodyBones, HumanBodyBones> symmetricBoneMap = new Dictionary<HumanBodyBones, HumanBodyBones>()
+{
+    { HumanBodyBones.Hips, HumanBodyBones.Hips }, // 中轴骨骼对称到自身
+    { HumanBodyBones.Spine, HumanBodyBones.Spine },
+    { HumanBodyBones.Chest, HumanBodyBones.Chest },
+    { HumanBodyBones.UpperChest, HumanBodyBones.UpperChest },
+    { HumanBodyBones.Neck, HumanBodyBones.Neck },
+    { HumanBodyBones.Head, HumanBodyBones.Head },
+
+    { HumanBodyBones.LeftShoulder, HumanBodyBones.RightShoulder },
+    { HumanBodyBones.LeftUpperArm, HumanBodyBones.RightUpperArm },
+    { HumanBodyBones.LeftLowerArm, HumanBodyBones.RightLowerArm },
+    { HumanBodyBones.LeftHand, HumanBodyBones.RightHand },
+    { HumanBodyBones.LeftThumbProximal, HumanBodyBones.RightThumbProximal },
+    { HumanBodyBones.LeftThumbIntermediate, HumanBodyBones.RightThumbIntermediate },
+    { HumanBodyBones.LeftThumbDistal, HumanBodyBones.RightThumbDistal },
+    { HumanBodyBones.LeftIndexProximal, HumanBodyBones.RightIndexProximal },
+    { HumanBodyBones.LeftIndexIntermediate, HumanBodyBones.RightIndexIntermediate },
+    { HumanBodyBones.LeftIndexDistal, HumanBodyBones.RightIndexDistal },
+    { HumanBodyBones.LeftMiddleProximal, HumanBodyBones.RightMiddleProximal },
+    { HumanBodyBones.LeftMiddleIntermediate, HumanBodyBones.RightMiddleIntermediate },
+    { HumanBodyBones.LeftMiddleDistal, HumanBodyBones.RightMiddleDistal },
+    { HumanBodyBones.LeftRingProximal, HumanBodyBones.RightRingProximal },
+    { HumanBodyBones.LeftRingIntermediate, HumanBodyBones.RightRingIntermediate },
+    { HumanBodyBones.LeftRingDistal, HumanBodyBones.RightRingDistal },
+    { HumanBodyBones.LeftLittleProximal, HumanBodyBones.RightLittleProximal },
+    { HumanBodyBones.LeftLittleIntermediate, HumanBodyBones.RightLittleIntermediate },
+    { HumanBodyBones.LeftLittleDistal, HumanBodyBones.RightLittleDistal },
+
+    { HumanBodyBones.RightShoulder, HumanBodyBones.LeftShoulder },
+    { HumanBodyBones.RightUpperArm, HumanBodyBones.LeftUpperArm },
+    { HumanBodyBones.RightLowerArm, HumanBodyBones.LeftLowerArm },
+    { HumanBodyBones.RightHand, HumanBodyBones.LeftHand },
+    { HumanBodyBones.RightThumbProximal, HumanBodyBones.LeftThumbProximal },
+    { HumanBodyBones.RightThumbIntermediate, HumanBodyBones.LeftThumbIntermediate },
+    { HumanBodyBones.RightThumbDistal, HumanBodyBones.LeftThumbDistal },
+    { HumanBodyBones.RightIndexProximal, HumanBodyBones.LeftIndexProximal },
+    { HumanBodyBones.RightIndexIntermediate, HumanBodyBones.LeftIndexIntermediate },
+    { HumanBodyBones.RightIndexDistal, HumanBodyBones.LeftIndexDistal },
+    { HumanBodyBones.RightMiddleProximal, HumanBodyBones.LeftMiddleProximal },
+    { HumanBodyBones.RightMiddleIntermediate, HumanBodyBones.LeftMiddleIntermediate },
+    { HumanBodyBones.RightMiddleDistal, HumanBodyBones.LeftMiddleDistal },
+    { HumanBodyBones.RightRingProximal, HumanBodyBones.LeftRingProximal },
+    { HumanBodyBones.RightRingIntermediate, HumanBodyBones.LeftRingIntermediate },
+    { HumanBodyBones.RightRingDistal, HumanBodyBones.LeftRingDistal },
+    { HumanBodyBones.RightLittleProximal, HumanBodyBones.LeftLittleProximal },
+    { HumanBodyBones.RightLittleIntermediate, HumanBodyBones.LeftLittleIntermediate },
+    { HumanBodyBones.RightLittleDistal, HumanBodyBones.LeftLittleDistal },
+
+    { HumanBodyBones.LeftUpperLeg, HumanBodyBones.RightUpperLeg },
+    { HumanBodyBones.LeftLowerLeg, HumanBodyBones.RightLowerLeg },
+    { HumanBodyBones.LeftFoot, HumanBodyBones.RightFoot },
+    { HumanBodyBones.LeftToes, HumanBodyBones.RightToes },
+
+    { HumanBodyBones.RightUpperLeg, HumanBodyBones.LeftUpperLeg },
+    { HumanBodyBones.RightLowerLeg, HumanBodyBones.LeftLowerLeg },
+    { HumanBodyBones.RightFoot, HumanBodyBones.LeftFoot },
+    { HumanBodyBones.RightToes, HumanBodyBones.LeftToes }
+};
+
+    // 面板状态
+
+    private bool showAdvancedSettings;
+    private Vector2 mainScrollPosition;
 
     [MenuItem("VRoidTools/对称同步工具")]
     public static void ShowWindow()
     {
         SymmetrySyncWindow window = GetWindow<SymmetrySyncWindow>("对称同步工具");
-        window.minSize = new Vector2(300, 400); // 设置最小尺寸
+        window.minSize = new Vector2(300, 500); // 设置最小尺寸
         window.Show();
 
         // 初始时检查当前选择
@@ -54,6 +138,8 @@ public class SymmetrySyncWindow : EditorWindow
     {
         // 监听选择变化
         Selection.selectionChanged += OnSelectionChanged;
+        excludedComponentTypes.Add(typeof(Camera));
+        excludedComponentTypes.Add(typeof(Light));
     }
 
     private void OnDisable()
@@ -83,16 +169,13 @@ public class SymmetrySyncWindow : EditorWindow
                     ShowNotification(new GUIContent("未找到对称物体，请手动指定"));
                 }
 
-                // 清除预览
-                previewData = null;
-                showSyncPreview = false;
                 Repaint(); // 立即刷新窗口
             }
         }
     }
-
     private void OnGUI()
     {
+        mainScrollPosition = EditorGUILayout.BeginScrollView(mainScrollPosition);
         GUILayout.Label("对称同步控制", EditorStyles.boldLabel);
         EditorGUILayout.Space();
 
@@ -116,7 +199,50 @@ public class SymmetrySyncWindow : EditorWindow
 
         // 对称设置
         symmetryAxis = (SymmetryAxis)EditorGUILayout.EnumPopup("对称轴", symmetryAxis);
+        // 匹配模式选择
+        currentMatchMode = (MatchMode)EditorGUILayout.EnumPopup("匹配模式", currentMatchMode);
+        switch (currentMatchMode)
+        {
+            case MatchMode.Mixed:
+                EditorGUILayout.HelpBox(
+                    "混合匹配：优先尝试基于Humanoid骨骼映射查找对称物体，若失败则回退到名称关键词匹配。\n" +
+                    "请确保模型有Humanoid类型的Animator组件，且骨骼已正确映射。",
+                    MessageType.Info);
+                break;
+            case MatchMode.BoneOnly:
+                EditorGUILayout.HelpBox(
+                    "骨骼匹配：仅基于Humanoid骨骼映射查找对称物体。\n" +
+                    "必须有Humanoid类型的Animator组件，且骨骼已正确映射，否则无法自动查找。",
+                    MessageType.Warning);
+                break;
+            case MatchMode.NameOnly:
+                EditorGUILayout.HelpBox(
+                    "名称匹配：仅通过关键词对替换查找对称物体。\n" +
+                    "适用于非Humanoid骨架或自定义命名结构。",
+                    MessageType.Info);
+                break;
+        }
+
         ignorePrefixNumbers = EditorGUILayout.Toggle("忽略前缀数字", ignorePrefixNumbers);
+
+        // 同步内容控制选项
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("同步内容设置", EditorStyles.boldLabel);
+        modifyTransform = EditorGUILayout.Toggle("同步Transform（位置/旋转/缩放）", modifyTransform);
+        modifyComponents = EditorGUILayout.Toggle("同步组件属性", modifyComponents);
+        // 新增选项：自动创建缺失组件
+        if (modifyComponents)
+        {
+            EditorGUI.indentLevel++;
+            autoCreateMissingComponents = EditorGUILayout.Toggle(
+                "自动创建缺失组件", autoCreateMissingComponents);
+
+            // 显示排除的组件提示
+            EditorGUILayout.HelpBox(
+                "系统会自动排除基础渲染和变换组件，避免创建冲突",
+                MessageType.Info, true);
+            EditorGUI.indentLevel--;
+        }
 
         // 关键词对设置
         showAdvancedSettings = EditorGUILayout.Foldout(showAdvancedSettings, "对称关键词对设置");
@@ -183,12 +309,7 @@ public class SymmetrySyncWindow : EditorWindow
         // 同步控制
         EditorGUILayout.BeginHorizontal();
 
-        // 预览按钮
-        if (GUILayout.Button("预览同步效果") && CanSync())
-        {
-            GenerateSyncPreview();
-            showSyncPreview = true;
-        }
+
 
         // 同步按钮
         GUI.enabled = CanSync();
@@ -201,35 +322,7 @@ public class SymmetrySyncWindow : EditorWindow
 
         EditorGUILayout.EndHorizontal();
 
-        // 显示预览
-        if (showSyncPreview && previewData != null)
-        {
-            EditorGUILayout.Space();
-            GUILayout.Label("同步预览", EditorStyles.boldLabel);
-
-            scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
-
-            // 显示变换预览
-            EditorGUILayout.LabelField("变换同步:", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField($"位置: {previewData.originalPosition} → {previewData.symmetricPosition}");
-            EditorGUILayout.LabelField($"旋转: {previewData.originalRotation.eulerAngles} → {previewData.symmetricRotation.eulerAngles}");
-            EditorGUILayout.LabelField($"缩放: {previewData.originalScale} → {previewData.symmetricScale}");
-
-            // 显示组件同步预览
-            if (previewData.componentChanges.Count > 0)
-            {
-                EditorGUILayout.Space();
-                EditorGUILayout.LabelField("组件变化:", EditorStyles.boldLabel);
-
-                foreach (var change in previewData.componentChanges)
-                {
-                    EditorGUILayout.LabelField($"{change.componentType}: {change.propertyName}");
-                    EditorGUILayout.HelpBox($"从 {change.originalValue} 变为 {change.symmetricValue}", MessageType.Info);
-                }
-            }
-
-            EditorGUILayout.EndScrollView();
-        }
+        EditorGUILayout.EndScrollView();
     }
 
     // 检查是否可以执行同步
@@ -240,17 +333,136 @@ public class SymmetrySyncWindow : EditorWindow
     }
 
     // 自动查找对称物体
+    // 自动查找对称物体（重构版）
     private bool AutoFindSymmetricTransform()
     {
         if (sourceTransform == null) return false;
 
+        // 1. 根据当前匹配模式选择查找策略
+        switch (currentMatchMode)
+        {
+            case MatchMode.Mixed:
+                // 混合模式：先试骨骼匹配，失败再试名称匹配
+                if (TryBoneBasedFind()) return true;
+                return TryNameBasedFind();
+
+            case MatchMode.BoneOnly:
+                // 仅骨骼匹配
+                return TryBoneBasedFind();
+
+            case MatchMode.NameOnly:
+                // 仅名称匹配（原逻辑）
+                return TryNameBasedFind();
+
+            default:
+                return TryNameBasedFind();
+        }
+    }
+    // 骨骼匹配核心方法
+    private bool TryBoneBasedFind()
+    {
+        // 步骤1：查找关联的Animator并验证是否为Humanoid类型
+        Animator animator = GetAssociatedHumanoidAnimator();
+        if (animator == null || animator.avatar == null || !animator.avatar.isHuman)
+        {
+            ShowNotification(new GUIContent("未检测到Humanoid类型的Animator组件"));
+            return false;
+        }
+
+        // 步骤2：确定源骨骼对应的HumanBodyBones
+        HumanBodyBones sourceBoneType = GetHumanBodyBoneType(animator, sourceTransform);
+        if (sourceBoneType == HumanBodyBones.LastBone)
+        {
+            ShowNotification(new GUIContent("所选物体不是已映射的Humanoid骨骼"));
+            return false;
+        }
+
+        // 步骤3：获取对称骨骼类型
+        if (!symmetricBoneMap.TryGetValue(sourceBoneType, out HumanBodyBones targetBoneType))
+        {
+            ShowNotification(new GUIContent("该骨骼没有对称骨骼"));
+            return false;
+        }
+
+        // 步骤4：获取对称骨骼的Transform
+        Transform symmetricBone = animator.GetBoneTransform(targetBoneType);
+        if (symmetricBone != null && symmetricBone != sourceTransform)
+        {
+            targetTransform = symmetricBone;
+            ShowNotification(new GUIContent(
+                $"骨骼映射匹配成功: {sourceBoneType} → {targetBoneType}"));
+            return true;
+        }
+
+        ShowNotification(new GUIContent("未找到对应的对称骨骼"));
+        return false;
+    }
+
+
+    // 获取关联的Humanoid类型Animator
+    private Animator GetAssociatedHumanoidAnimator()
+    {
+        // 从源物体向上查找Animator
+        Transform current = sourceTransform;
+        while (current != null)
+        {
+            Animator anim = current.GetComponent<Animator>();
+            if (anim != null)
+            {
+                return anim;
+            }
+            current = current.parent;
+        }
+
+        // 从场景中查找引用该骨骼的Humanoid Animator
+        var allAnimators = UnityEngine.Object.FindObjectsOfType<Animator>();
+        foreach (var anim in allAnimators)
+        {
+            if (anim.avatar != null && anim.avatar.isHuman)
+            {
+                // 检查该Animator是否包含源骨骼
+                for (int i = 0; i < (int)HumanBodyBones.LastBone; i++)
+                {
+                    Transform bone = anim.GetBoneTransform((HumanBodyBones)i);
+                    if (bone == sourceTransform)
+                    {
+                        return anim;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // 确定Transform对应的HumanBodyBones类型
+    private HumanBodyBones GetHumanBodyBoneType(Animator animator, Transform bone)
+    {
+        if (animator == null || !animator.avatar.isHuman || bone == null)
+            return HumanBodyBones.LastBone;
+
+        // 遍历所有可能的骨骼类型查找匹配
+        for (int i = 0; i < (int)HumanBodyBones.LastBone; i++)
+        {
+            HumanBodyBones boneType = (HumanBodyBones)i;
+            if (animator.GetBoneTransform(boneType) == bone)
+            {
+                return boneType;
+            }
+        }
+
+        return HumanBodyBones.LastBone;
+    }
+    // 名称匹配逻辑（提取为独立方法）
+    private bool TryNameBasedFind()
+    {
         string sourceName = sourceTransform.name;
         if (ignorePrefixNumbers)
         {
             sourceName = RemovePrefixNumbers(sourceName);
         }
 
-        // 尝试用每个关键词对查找对称对象
+        // 尝试用每个关键词对查找对称对象（原逻辑）
         foreach (var pair in keywordPairs)
         {
             if (string.IsNullOrEmpty(pair.a) || string.IsNullOrEmpty(pair.b))
@@ -293,40 +505,12 @@ public class SymmetrySyncWindow : EditorWindow
             }
         }
 
-        // 如果没找到，清除目标
+        // 名称匹配失败
         targetTransform = null;
         return false;
     }
 
-    // 生成同步预览
-    private void GenerateSyncPreview()
-    {
-        if (!CanSync()) return;
 
-        previewData = new PreviewData();
-
-        // 记录变换预览
-        previewData.originalPosition = sourceTransform.localPosition;
-        previewData.originalRotation = sourceTransform.localRotation;
-        previewData.originalScale = sourceTransform.localScale;
-
-        previewData.symmetricPosition = GetSymmetricVector(sourceTransform.localPosition);
-        previewData.symmetricRotation = GetSymmetricQuaternion(sourceTransform.localRotation);
-        previewData.symmetricScale = sourceTransform.localScale; // 缩放通常不翻转
-
-        // 记录组件变化预览
-        Component[] sourceComponents = sourceTransform.GetComponents<Component>();
-        foreach (var sourceComp in sourceComponents)
-        {
-            if (sourceComp == null || sourceComp is Transform) continue;
-
-            var targetComp = targetTransform.GetComponent(sourceComp.GetType());
-            if (targetComp == null) continue;
-
-            // 检查组件属性变化
-            CheckComponentChanges(sourceComp, targetComp, previewData);
-        }
-    }
 
     // 执行对称同步
     private void PerformSymmetrySync()
@@ -334,25 +518,53 @@ public class SymmetrySyncWindow : EditorWindow
         if (!CanSync()) return;
 
         Undo.RecordObject(targetTransform, "对称同步变换");
-
-        // 同步变换
-        targetTransform.localPosition = GetSymmetricVector(sourceTransform.localPosition);
-        targetTransform.localRotation = GetSymmetricQuaternion(sourceTransform.localRotation);
-        targetTransform.localScale = sourceTransform.localScale;
-
-        // 同步组件
-        Component[] sourceComponents = sourceTransform.GetComponents<Component>();
-        foreach (var sourceComp in sourceComponents)
+        // 仅在需要修改Transform时执行
+        if (modifyTransform)
         {
-            if (sourceComp == null || sourceComp is Transform) continue;
-
-            var targetComp = targetTransform.GetComponent(sourceComp.GetType());
-            if (targetComp == null) continue;
-
-            Undo.RecordObject(targetComp, $"对称同步 {sourceComp.GetType().Name}");
-            SyncComponentProperties(sourceComp, targetComp);
+            Undo.RecordObject(targetTransform, "对称同步变换");
+            targetTransform.localPosition = GetSymmetricVector(sourceTransform.localPosition);
+            targetTransform.localRotation = GetSymmetricQuaternion(sourceTransform.localRotation);
+            targetTransform.localScale = sourceTransform.localScale;
         }
 
+        // 增强的组件同步逻辑
+        if (modifyComponents)
+        {
+            Component[] sourceComponents = sourceTransform.GetComponents<Component>();
+            foreach (var sourceComp in sourceComponents)
+            {
+                if (sourceComp == null) continue;
+
+                Type compType = sourceComp.GetType();
+
+                // 跳过排除的组件类型
+                if (excludedComponentTypes.Contains(compType))
+                    continue;
+
+                // 查找或创建目标组件
+                Component targetComp = targetTransform.GetComponent(compType);
+                bool isNewComponent = false;
+
+                // 如果需要自动创建且组件不存在
+                if (targetComp == null && autoCreateMissingComponents)
+                {
+                    // 记录撤销操作
+                    Undo.AddComponent(targetTransform.gameObject, compType);
+                    targetComp = targetTransform.GetComponent(compType);
+                    isNewComponent = true;
+                }
+
+                // 只处理存在的目标组件（无论是已有的还是新创建的）
+                if (targetComp != null)
+                {
+                    if (!isNewComponent)
+                    {
+                        Undo.RecordObject(targetComp, $"对称同步 {compType.Name}");
+                    }
+                    SyncComponentProperties(sourceComp, targetComp);
+                }
+            }
+        }
         // 刷新场景视图
         SceneView.RepaintAll();
     }
