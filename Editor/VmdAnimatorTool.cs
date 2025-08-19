@@ -5,16 +5,15 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
+using UnityEngine.Timeline;
 using Object = UnityEngine.Object;
 using VMDPaser;
-using MMD;
 using AnimConverter.Editor.Utils;
-using VMD2Anim;
-using Assets.AnimConverter.Editor;
 // CancellationTokenSource
 using System.Threading;
 // Task
 using System.Threading.Tasks;
+using UnityEngine.Playables;
 
 namespace Assets.AnimConverter.Editor
 {
@@ -86,6 +85,7 @@ namespace Assets.AnimConverter.Editor
         private bool directMappingMode = true;
         private string defaultSkinnedMeshPath = "Body";
         private string defaultSkinnedMeshName = "Body";
+        private bool showSkinnedMeshOptions = false;
 
         // 相机动画配置
         private bool showCameraAdvancedOptions = false;
@@ -113,7 +113,9 @@ namespace Assets.AnimConverter.Editor
         private Vector2 allMorphsScrollPos;
         private bool showMappingOptions = false;
 
-
+        // 用于Timeline预览
+        private bool showTimelinePreview = false;
+        private GameObject characterModel;
 
 
         // 4. 在编辑器窗口中添加取消支持
@@ -169,7 +171,10 @@ namespace Assets.AnimConverter.Editor
             DrawNamingSettings();
             DrawActionButtons();
             DrawAudioSettings();
+            // 使用timeline预览
+            DrawTimelinePreview();
             DrawSeparator();
+
 
             DrawAssetBundleSettings();
 
@@ -611,10 +616,15 @@ namespace Assets.AnimConverter.Editor
             if (directMappingMode)
             {
                 EditorGUILayout.HelpBox("直接映射模式将直接使用VMD中的表情写入到对应路径的动画里，无需关联模型", MessageType.Info);
-                EditorGUILayout.BeginVertical();
-                defaultSkinnedMeshPath = EditorGUILayout.TextField("SkinnedMeshRenderer路径", defaultSkinnedMeshPath);
-                defaultSkinnedMeshName = EditorGUILayout.TextField("组件名称", defaultSkinnedMeshName);
-                EditorGUILayout.EndVertical();
+
+                showSkinnedMeshOptions = EditorGUILayout.Foldout(showSkinnedMeshOptions, "SkinnedMeshRenderer 路径设置");
+                if (showSkinnedMeshOptions)
+                {
+                    EditorGUILayout.BeginVertical();
+                    defaultSkinnedMeshPath = EditorGUILayout.TextField("SkinnedMeshRenderer路径", defaultSkinnedMeshPath);
+                    defaultSkinnedMeshName = EditorGUILayout.TextField("组件名称", defaultSkinnedMeshName);
+                    EditorGUILayout.EndVertical();
+                }
             }
             else
             {
@@ -624,10 +634,7 @@ namespace Assets.AnimConverter.Editor
             EditorGUILayout.BeginHorizontal();
             if (directMappingMode)
             {
-                GUI.enabled = false;
-                targetModel = (GameObject)EditorGUILayout.ObjectField(
-                    "目标模型（直接映射下禁用）", targetModel, typeof(GameObject), true);
-                GUI.enabled = true;
+
             }
             else
             {
@@ -798,6 +805,218 @@ namespace Assets.AnimConverter.Editor
             }
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.Space();
+        }
+        private void DrawTimelinePreview()
+        {
+            // 折叠区域控制
+            showTimelinePreview = EditorGUILayout.Foldout(showTimelinePreview, "Timeline 预览", true);
+
+            if (showTimelinePreview)
+            {
+                EditorGUI.indentLevel++;
+
+                // 人物模型拖放区域
+                EditorGUILayout.LabelField("角色模型", EditorStyles.boldLabel);
+                characterModel = EditorGUILayout.ObjectField(
+                    "拖放模型到此处",
+                    characterModel,
+                    typeof(GameObject),
+                    true) as GameObject;
+
+                EditorGUILayout.Space();
+
+                // 创建Timeline按钮
+                GUI.enabled = characterModel != null &&
+                             !string.IsNullOrEmpty(bundleBaseName) &&
+                             Directory.Exists(DefaultOutputPath);
+
+                if (GUILayout.Button("创建预览Timeline"))
+                {
+                    CreateTimelinePreview();
+                }
+
+                // 按钮状态提示
+                if (!GUI.enabled)
+                {
+                    string disabledReason = "";
+                    if (characterModel == null)
+                        disabledReason = "请先指定角色模型";
+                    else if (string.IsNullOrEmpty(bundleBaseName))
+                        disabledReason = "请设置有效的基础名称";
+                    else if (!Directory.Exists(DefaultOutputPath))
+                        disabledReason = "输出目录不存在，请先生成动画资源";
+
+                    EditorGUILayout.HelpBox(disabledReason, MessageType.Info);
+                }
+
+                GUI.enabled = true;
+                EditorGUI.indentLevel--;
+            }
+        }
+        private void CreateTimelinePreview()
+        {
+
+            // --------------- 新增：检查并自动设置角色模型的 Controller ---------------
+            if (characterModel == null)
+            {
+                EditorUtility.DisplayDialog("错误", "请先在 Inspector 中选择角色模型！", "确定");
+                return;
+            }
+
+            // 获取角色模型上的 Animator 组件（没有则自动添加）
+            Animator characterAnimator = characterModel.GetComponent<Animator>();
+            if (characterAnimator == null)
+            {
+                characterAnimator = characterModel.AddComponent<Animator>(); // 自动添加 Animator
+            }
+
+            // 加载你已生成的动画控制器（就是你代码中原本的 animController）
+            string controllerPath = $"{DefaultOutputPath}{bundleBaseName}.controller";
+            RuntimeAnimatorController animController = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(controllerPath);
+
+            // 如果 Animator 没有 Controller，自动赋值（避免覆盖用户手动设置的 Controller）
+            if (characterAnimator.runtimeAnimatorController == null && animController != null)
+            {
+                characterAnimator.runtimeAnimatorController = animController;
+                EditorUtility.SetDirty(characterModel); // 标记模型为已修改，确保保存
+                AssetDatabase.SaveAssets();
+            }
+            // 验证模型是否包含Animator组件
+            Animator modelAnimator = characterModel.GetComponent<Animator>();
+            if (modelAnimator == null)
+            {
+                EditorUtility.DisplayDialog("错误", "角色模型必须包含Animator组件", "确定");
+                return;
+            }
+
+            // 创建Timeline资产路径
+            string timelinePath = $"{DefaultOutputPath}{bundleBaseName}_preview.asset";
+            string sceneDirectorName = $"{bundleBaseName}_director";
+
+            // 确保输出目录存在
+            if (!Directory.Exists(DefaultOutputPath))
+            {
+                Directory.CreateDirectory(DefaultOutputPath);
+            }
+
+            // 创建或获取Timeline资产（显式指定类型参数）
+            TimelineAsset timelineAsset = AssetDatabase.LoadAssetAtPath<TimelineAsset>(timelinePath);
+            if (timelineAsset == null)
+            {
+                // 显式指定类型参数，修复类型推断错误
+                timelineAsset = ScriptableObject.CreateInstance<TimelineAsset>();
+                AssetDatabase.CreateAsset(timelineAsset, timelinePath);
+                AssetDatabase.SaveAssets();
+            }
+            else
+            {
+                // 清除现有轨道
+                foreach (var track in timelineAsset.GetOutputTracks())
+                {
+                    timelineAsset.DeleteTrack(track);
+                }
+                EditorUtility.SetDirty(timelineAsset);
+            }
+
+            // 在当前场景中创建或获取PlayableDirector
+            PlayableDirector director = GameObject.FindObjectOfType<PlayableDirector>();
+            GameObject directorObj = null;
+
+            if (director == null || director.gameObject.name != sceneDirectorName)
+            {
+                // 清除场景中可能存在的旧导演对象
+                var oldDirectors = GameObject.FindObjectsOfType<PlayableDirector>();
+                foreach (var oldDir in oldDirectors)
+                {
+                    if (oldDir.gameObject.name == sceneDirectorName)
+                        DestroyImmediate(oldDir.gameObject);
+                }
+
+                // 创建新的导演对象
+                directorObj = new GameObject(sceneDirectorName);
+                director = directorObj.AddComponent<PlayableDirector>();
+                director.playableAsset = timelineAsset;
+                director.extrapolationMode = DirectorWrapMode.Hold;
+            }
+            else
+            {
+                director.playableAsset = timelineAsset;
+                EditorUtility.SetDirty(director);
+            }
+
+            // 添加动画轨道并绑定到用户提供的模型（修复CreateTrack参数错误）
+            AnimationTrack animTrack = timelineAsset.CreateTrack<AnimationTrack>("动画轨道");
+            // 绑定轨道到目标对象
+            director.SetGenericBinding(animTrack, characterModel);
+
+            // 获取用户模型上的动画控制器
+            RuntimeAnimatorController modelController = modelAnimator.runtimeAnimatorController;
+
+            if (modelController != null)
+            {
+                // 查找并添加对应的动画剪辑
+                foreach (var clip in modelController.animationClips)
+                {
+                    if (clip.name.Contains(bundleBaseName))
+                    {
+                        TimelineClip animTimelineClip = animTrack.CreateDefaultClip();
+                        animTimelineClip.displayName = clip.name;
+                        animTimelineClip.start = 0;
+                        animTimelineClip.duration = clip.length;
+
+                        // 修复AnimationPlayableAsset的属性访问错误
+                        AnimationPlayableAsset animationAsset = animTimelineClip.asset as AnimationPlayableAsset;
+                        if (animationAsset != null)
+                        {
+                            // 使用正确的属性名AnimationClip（大写A）
+                            animationAsset.clip = clip;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                EditorUtility.DisplayDialog("错误", "角色模型的Animator没有关联控制器", "确定");
+                return;
+            }
+
+            // 添加音频轨道
+            if (!string.IsNullOrEmpty(audioFilePath) && File.Exists(audioFilePath))
+            {
+                AudioTrack audioTrack = timelineAsset.CreateTrack<AudioTrack>("音频轨道");
+                var audioClip = AssetDatabase.LoadAssetAtPath<AudioClip>(audioFilePath);
+
+                if (audioClip != null)
+                {
+                    TimelineClip audioTimelineClip = audioTrack.CreateDefaultClip();
+                    audioTimelineClip.displayName = audioClip.name;
+                    audioTimelineClip.start = 0;
+                    audioTimelineClip.duration = audioClip.length;
+
+                    AudioPlayableAsset audioAsset = audioTimelineClip.asset as AudioPlayableAsset;
+                    if (audioAsset != null)
+                    {
+                        audioAsset.clip = audioClip; // 修复音频属性访问
+                    }
+                }
+            }
+
+            // 保存所有修改
+            EditorUtility.SetDirty(timelineAsset);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            // 提示用户
+            EditorUtility.DisplayDialog(
+                "成功",
+                $"Timeline已创建并可在场景中编辑：\n" +
+                $"- 动画已关联到模型：{characterModel.name}\n" +
+                $"- 可在Window > Sequencing > Timeline打开编辑器\n" +
+                $"- 播放场景即可预览效果",
+                "确定");
+
+            // 自动打开Timeline窗口
+            EditorApplication.ExecuteMenuItem("Window/Sequencing/Timeline");
         }
 
         private void DrawAssetBundleSettings()
