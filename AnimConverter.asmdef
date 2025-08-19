@@ -6,6 +6,7 @@
 		"UnityEditor",
 		"MMD",
 		"VRM",
+		"UniGLTF",
 		"VRoidModSpringBones"
 	],
 	"includePlatforms": [],
