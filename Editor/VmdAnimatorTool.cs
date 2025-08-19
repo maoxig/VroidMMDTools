@@ -855,39 +855,44 @@ namespace Assets.AnimConverter.Editor
         }
         private void CreateTimelinePreview()
         {
-
-            // --------------- 新增：检查并自动设置角色模型的 Controller ---------------
+            // --------------- 核心修改1：强制覆写模型的Animator控制器 ---------------
             if (characterModel == null)
             {
                 EditorUtility.DisplayDialog("错误", "请先在 Inspector 中选择角色模型！", "确定");
                 return;
             }
 
-            // 获取角色模型上的 Animator 组件（没有则自动添加）
+            // 1. 获取/添加模型的Animator组件（确保模型具备动画播放能力）
             Animator characterAnimator = characterModel.GetComponent<Animator>();
             if (characterAnimator == null)
             {
-                characterAnimator = characterModel.AddComponent<Animator>(); // 自动添加 Animator
+                characterAnimator = characterModel.AddComponent<Animator>();
+                EditorUtility.DisplayDialog("提示", "已为模型自动添加Animator组件", "确定");
             }
 
-            // 加载你已生成的动画控制器（就是你代码中原本的 animController）
-            string controllerPath = $"{DefaultOutputPath}{bundleBaseName}.controller";
-            RuntimeAnimatorController animController = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(controllerPath);
+            // 2. 加载当前工具生成的目标Controller（必须是包含Timeline所需动画的Controller）
+            string targetControllerPath = $"{DefaultOutputPath}{bundleBaseName}.controller";
+            RuntimeAnimatorController targetController = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(targetControllerPath);
 
-            // 如果 Animator 没有 Controller，自动赋值（避免覆盖用户手动设置的 Controller）
-            if (characterAnimator.runtimeAnimatorController == null && animController != null)
+            if (targetController == null)
             {
-                characterAnimator.runtimeAnimatorController = animController;
-                EditorUtility.SetDirty(characterModel); // 标记模型为已修改，确保保存
-                AssetDatabase.SaveAssets();
-            }
-            // 验证模型是否包含Animator组件
-            Animator modelAnimator = characterModel.GetComponent<Animator>();
-            if (modelAnimator == null)
-            {
-                EditorUtility.DisplayDialog("错误", "角色模型必须包含Animator组件", "确定");
+                EditorUtility.DisplayDialog("错误", $"未找到目标动画控制器：{targetControllerPath}\n请先生成动画资源！", "确定");
                 return;
             }
+
+            // 3. 强制覆写Animator的Controller（不管之前有没有，直接替换为目标Controller）
+            if (characterAnimator.runtimeAnimatorController != targetController)
+            {
+                // 记录旧Controller名称，用于用户提示
+                string oldControllerName = characterAnimator.runtimeAnimatorController?.name ?? "空控制器";
+                // 强制赋值目标Controller
+                characterAnimator.runtimeAnimatorController = targetController;
+                // 标记模型为已修改，确保Controller变更被保存
+                EditorUtility.SetDirty(characterModel);
+                // 提示用户“控制器已被更新”（避免用户困惑）
+                Debug.Log($"控制器已更新: 模型原有控制器：{oldControllerName}，已替换为：{targetController.name}（用于匹配当前Timeline动画）");
+            }
+            // ----------------------------------------------------------------------
 
             // 创建Timeline资产路径
             string timelinePath = $"{DefaultOutputPath}{bundleBaseName}_preview.asset";
@@ -903,14 +908,13 @@ namespace Assets.AnimConverter.Editor
             TimelineAsset timelineAsset = AssetDatabase.LoadAssetAtPath<TimelineAsset>(timelinePath);
             if (timelineAsset == null)
             {
-                // 显式指定类型参数，修复类型推断错误
                 timelineAsset = ScriptableObject.CreateInstance<TimelineAsset>();
                 AssetDatabase.CreateAsset(timelineAsset, timelinePath);
                 AssetDatabase.SaveAssets();
             }
             else
             {
-                // 清除现有轨道
+                // 清除现有轨道（避免旧轨道干扰）
                 foreach (var track in timelineAsset.GetOutputTracks())
                 {
                     timelineAsset.DeleteTrack(track);
@@ -924,7 +928,7 @@ namespace Assets.AnimConverter.Editor
 
             if (director == null || director.gameObject.name != sceneDirectorName)
             {
-                // 清除场景中可能存在的旧导演对象
+                // 清除场景中同名旧导演对象（避免冲突）
                 var oldDirectors = GameObject.FindObjectsOfType<PlayableDirector>();
                 foreach (var oldDir in oldDirectors)
                 {
@@ -932,7 +936,7 @@ namespace Assets.AnimConverter.Editor
                         DestroyImmediate(oldDir.gameObject);
                 }
 
-                // 创建新的导演对象
+                // 创建新的导演对象并关联Timeline
                 directorObj = new GameObject(sceneDirectorName);
                 director = directorObj.AddComponent<PlayableDirector>();
                 director.playableAsset = timelineAsset;
@@ -944,17 +948,18 @@ namespace Assets.AnimConverter.Editor
                 EditorUtility.SetDirty(director);
             }
 
-            // 添加动画轨道并绑定到用户提供的模型（修复CreateTrack参数错误）
+            // 添加动画轨道并绑定到模型（关键：确保轨道控制目标模型）
             AnimationTrack animTrack = timelineAsset.CreateTrack<AnimationTrack>("动画轨道");
-            // 绑定轨道到目标对象
             director.SetGenericBinding(animTrack, characterModel);
 
-            // 获取用户模型上的动画控制器
-            RuntimeAnimatorController modelController = modelAnimator.runtimeAnimatorController;
+            // --------------- 核心修改2：直接使用已覆写的目标Controller ---------------
+            // 此时模型的Animator已被强制设置为targetController，直接获取即可
+            RuntimeAnimatorController modelController = characterAnimator.runtimeAnimatorController;
+            // ----------------------------------------------------------------------
 
             if (modelController != null)
             {
-                // 查找并添加对应的动画剪辑
+                // 查找并添加当前Controller中匹配的动画剪辑（避免无关动画混入）
                 foreach (var clip in modelController.animationClips)
                 {
                     if (clip.name.Contains(bundleBaseName))
@@ -964,12 +969,12 @@ namespace Assets.AnimConverter.Editor
                         animTimelineClip.start = 0;
                         animTimelineClip.duration = clip.length;
 
-                        // 修复AnimationPlayableAsset的属性访问错误
+                        // 赋值动画剪辑（修复属性名大小写问题，统一用小写clip，兼容不同Unity版本）
                         AnimationPlayableAsset animationAsset = animTimelineClip.asset as AnimationPlayableAsset;
                         if (animationAsset != null)
                         {
-                            // 使用正确的属性名AnimationClip（大写A）
-                            animationAsset.clip = clip;
+                            animationAsset.clip = clip; // 部分Unity版本中属性为小写clip，根据实际版本调整
+                                                        // 若报错“不存在clip属性”，则改为：animationAsset.AnimationClip = clip;
                         }
                     }
                 }
@@ -980,7 +985,7 @@ namespace Assets.AnimConverter.Editor
                 return;
             }
 
-            // 添加音频轨道
+            // 添加音频轨道（可选）
             if (!string.IsNullOrEmpty(audioFilePath) && File.Exists(audioFilePath))
             {
                 AudioTrack audioTrack = timelineAsset.CreateTrack<AudioTrack>("音频轨道");
@@ -996,34 +1001,38 @@ namespace Assets.AnimConverter.Editor
                     AudioPlayableAsset audioAsset = audioTimelineClip.asset as AudioPlayableAsset;
                     if (audioAsset != null)
                     {
-                        audioAsset.clip = audioClip; // 修复音频属性访问
+                        audioAsset.clip = audioClip;
                     }
                 }
             }
 
-            // 保存所有修改
-            EditorUtility.SetDirty(timelineAsset);
+            // 保存所有修改（确保Controller覆写、Timeline轨道变更生效）
+            EditorUtility.SetDirty(characterModel);   // 保存模型的Controller变更
+            EditorUtility.SetDirty(timelineAsset);    // 保存Timeline轨道变更
+            EditorUtility.SetDirty(director.gameObject); // 保存导演对象变更
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            // 提示用户
+            // 提示用户操作指引
             EditorUtility.DisplayDialog(
-                "成功",
-                $"Timeline已创建并可在场景中编辑：\n" +
-                $"- 动画已关联到模型：{characterModel.name}\n" +
-                $"- 可在Window > Sequencing > Timeline打开编辑器\n" +
-                $"- 播放场景即可预览效果",
+                "Timeline创建成功",
+                $"✅ 已完成以下操作：\n" +
+                $"- 模型：{characterModel.name}\n" +
+                $"- 控制器：已绑定 {targetController.name}\n" +
+                $"- Timeline路径：{timelinePath}\n\n" +
+                $"操作提示：\n" +
+                $"1. 在Window > Sequencing > Timeline打开编辑器\n" +
+                $"2. 点击场景播放按钮预览动画",
                 "确定");
 
-            // 自动打开Timeline窗口
+            // 自动打开Timeline窗口（提升用户体验）
             EditorApplication.ExecuteMenuItem("Window/Sequencing/Timeline");
         }
-
         private void DrawAssetBundleSettings()
         {
             EditorGUILayout.LabelField("资源打包设置", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox("打包前请先在Unity内预览，确保一切正常，并且确保音频轴对上动作轴", MessageType.Info);
-            EditorGUILayout.HelpBox("此外请在动画预览中检查人物朝向（红色箭头和蓝色箭头），也许需要调整Root Transform Rotation: Offset", MessageType.Info);
+            EditorGUILayout.HelpBox("如果预览时人物朝向、初始位置不对，请在动画Inspector中调整", MessageType.Info);
             EditorGUILayout.LabelField("自动打包（高级）", EditorStyles.miniBoldLabel);
 
             showBundleOptions = EditorGUILayout.Foldout(showBundleOptions, "打包高级选项");
