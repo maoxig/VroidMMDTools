@@ -175,9 +175,9 @@ namespace Assets.AnimConverter.Editor
             DrawTimelinePreview();
             DrawSeparator();
 
-
+#if USE_VROID_MOD
             DrawAssetBundleSettings();
-
+#endif
             EditorGUILayout.EndScrollView();
         }
 
@@ -1028,6 +1028,8 @@ namespace Assets.AnimConverter.Editor
             // 自动打开Timeline窗口（提升用户体验）
             EditorApplication.ExecuteMenuItem("Window/Sequencing/Timeline");
         }
+
+#if USE_VROID_MOD
         private void DrawAssetBundleSettings()
         {
             EditorGUILayout.LabelField("资源打包设置", EditorStyles.boldLabel);
@@ -1087,8 +1089,8 @@ namespace Assets.AnimConverter.Editor
             EditorGUILayout.HelpBox("如果自动打包失败, 请手动构建文件", MessageType.Info);
             EditorGUILayout.Space();
         }
-
-        #endregion
+#endif
+#endregion
 
         #region 新增和修改的核心方法
 

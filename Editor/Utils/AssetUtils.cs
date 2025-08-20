@@ -33,7 +33,7 @@ namespace AnimConverter.Editor.Utils
             AssetDatabase.Refresh();
             return Path.Combine(tempFolder, targetFileName);
         }
-
+#if USE_VROID_MOD
         public static void BuildAssetBundle(
             string resourcePath,         // 查找原始资源的路径
             string tempBuildFolder,      // 临时文件夹（必须在项目内）
@@ -141,6 +141,7 @@ namespace AnimConverter.Editor.Utils
                 Debug.LogError($"打包错误: {e}");
             }
         }
+#endif
         public static void EnsureDirectoryExists(string path)
         {
             if (!Directory.Exists(path))

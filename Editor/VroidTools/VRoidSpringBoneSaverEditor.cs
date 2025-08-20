@@ -1,5 +1,3 @@
-#define USE_VROID_MOD
-
 #if USE_VROID_MOD
 using VRoidModSpringBones;  // 仅在VROID模式下引用
 using MySpringBoneColliderGroup = VRoidModSpringBones.VRoidSpringBoneColliderGroup;

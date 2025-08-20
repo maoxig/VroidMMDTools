@@ -1,24 +1,30 @@
 {
-	"name": "AnimConverter",
-	"rootNamespace": "",
-	"references": [
-		"UnityEngine",
-		"UnityEditor",
-		"MMD",
-		"VRM",
-		"UniGLTF",
-		"Unity.Timeline",
-		"VRoidModSpringBones"
-	],
-	"includePlatforms": [],
-	"excludePlatforms": [],
-	"allowUnsafeCode": true,
-	"overrideReferences": false,
-	"precompiledReferences": [
-		""
-	],
-	"autoReferenced": true,
-	"defineConstraints": [],
-	"versionDefines": [],
-	"noEngineReferences": false
+    "name": "AnimConverter",
+    "rootNamespace": "",
+    "references": [
+        "UnityEngine",
+        "UnityEditor",
+        "MMD",
+        "VRM",
+        "UniGLTF",
+        "Unity.Timeline",
+        "VRoidModSpringBones"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [
+        ""
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "Unity",
+            "expression": "",
+            "define": "USE_VROID_MOD"
+        }
+    ],
+    "noEngineReferences": false
 }
