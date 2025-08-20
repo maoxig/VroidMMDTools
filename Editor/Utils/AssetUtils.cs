@@ -7,7 +7,7 @@ using UnityEditor.Animations;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace AnimConverter.Editor.Utils
+namespace VroidMMDTools.Utils
 {
     public static class AssetUtils
     {

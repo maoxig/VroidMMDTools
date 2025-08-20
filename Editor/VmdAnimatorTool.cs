@@ -8,14 +8,14 @@ using UnityEngine;
 using UnityEngine.Timeline;
 using Object = UnityEngine.Object;
 using VMDPaser;
-using AnimConverter.Editor.Utils;
+using VroidMMDTools.Utils;
 // CancellationTokenSource
 using System.Threading;
 // Task
 using System.Threading.Tasks;
 using UnityEngine.Playables;
 
-namespace Assets.AnimConverter.Editor
+namespace VroidMMDTools
 {
     public class VmdMorphAnimatorTool : EditorWindow
     {

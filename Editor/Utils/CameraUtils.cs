@@ -5,9 +5,9 @@ using UnityEngine;
 
 
 // using MMD.VMD;
-using AnimConverter.Editor.Utils;
+using VroidMMDTools.Utils;
 
-namespace AnimConverter.Editor.Utils
+namespace VroidMMDTools.Utils
 {
     public class CameraVmdAgent
     {

@@ -9,7 +9,7 @@ using MeshExtensionsForCopy = UniGLTF.MeshUtility.MeshExtensions;
 using System;
 
 
-namespace VRoidTools
+namespace VroidMMDTools
 {
     public class BlendShapeRenamer : EditorWindow
     {

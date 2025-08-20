@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System;
 
-namespace VRoidTools
+namespace VroidMMDTools
 {
     public class DuplicateBlendShapeInfo
     {

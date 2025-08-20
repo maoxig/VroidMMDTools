@@ -3,7 +3,7 @@ using System;
 using System.IO;
 using UnityEngine;
 
-namespace Assets.AnimConverter.Editor
+namespace VroidMMDTools
 {
     [System.Serializable]
     public class ToolConfig

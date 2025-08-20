@@ -3,11 +3,11 @@ using System.Collections.Generic;
 
 using System.IO;
 using System.Linq;
-using AnimConverter.Editor.Utils;
+using VroidMMDTools.Utils;
 using UnityEditor;
 using UnityEngine;
 using VMDPaser;
-using static Assets.AnimConverter.Editor.VmdMorphAnimatorTool;
+using static VroidMMDTools.VmdMorphAnimatorTool;
 
 namespace MMD6UnityTool
 {

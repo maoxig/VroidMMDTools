@@ -8,7 +8,7 @@ using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
-namespace AnimConverter.Editor.VroidTools
+namespace VroidMMDTools.VroidTools
 {
     /// <summary>
     /// PMX/PMD转FBX快速工具（单文件版）

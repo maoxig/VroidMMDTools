@@ -4,7 +4,7 @@ using System.Linq;
 using UnityEngine;
 using VMDPaser;
 
-namespace AnimConverter.Editor.Utils
+namespace VroidMMDTools.Utils
 {
     public static class MorphUtils
     {

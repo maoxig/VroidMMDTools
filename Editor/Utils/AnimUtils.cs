@@ -7,7 +7,7 @@ using System.Linq;
 using System;
 using System.IO;
 
-namespace AnimConverter.Editor.Utils
+namespace VroidMMDTools.Utils
 {
     public static class AnimUtils
     {
