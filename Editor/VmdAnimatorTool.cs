@@ -175,9 +175,9 @@ namespace VroidMMDTools
             DrawTimelinePreview();
             DrawSeparator();
 
-#if USE_VROID_MOD
+
             DrawAssetBundleSettings();
-#endif
+
             EditorGUILayout.EndScrollView();
         }
 
@@ -1029,7 +1029,7 @@ namespace VroidMMDTools
             EditorApplication.ExecuteMenuItem("Window/Sequencing/Timeline");
         }
 
-#if USE_VROID_MOD
+
         private void DrawAssetBundleSettings()
         {
             EditorGUILayout.LabelField("资源打包设置", EditorStyles.boldLabel);
@@ -1089,7 +1089,7 @@ namespace VroidMMDTools
             EditorGUILayout.HelpBox("如果自动打包失败, 请手动构建文件", MessageType.Info);
             EditorGUILayout.Space();
         }
-#endif
+
 #endregion
 
         #region 新增和修改的核心方法
