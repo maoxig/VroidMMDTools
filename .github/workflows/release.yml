@@ -17,10 +17,9 @@ jobs:
           fetch-depth: 0
 
       - name: Install git-cliff
-        run: |
-          curl -sL https://github.com/orhun/git-cliff/releases/download/v2.3.0/git-cliff-2.3.0-x86_64-unknown-linux-musl.tar.gz \
-            | tar -xz
-          sudo mv git-cliff /usr/local/bin/
+        uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
 
       - name: Generate changelog
         id: changelog
