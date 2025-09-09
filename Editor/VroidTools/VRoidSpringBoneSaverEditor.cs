@@ -25,6 +25,19 @@ using System.Linq;
 namespace VRMSpringAutoCreator
 {
 
+
+    public class VRMSpringBoneHelper : MonoBehaviour
+    {
+        public float m_stiffnessForce;
+        public float m_gravityPower;
+        public Vector3 m_gravityDir;
+        public float m_dragForce;
+        public string m_center;
+        public List<string> RootBones = new List<string>();
+        public float m_hitRadius = 0.02f;
+        public List<string> ColliderGroups = new List<string>();
+        public int m_updateType;
+    }
     internal static class VRoidSpringBoneSaverEditor
     {
 
@@ -67,10 +80,10 @@ namespace VRMSpringAutoCreator
                 return;
             }
 
-            var helperList = new List<global::VRMSpringBoneHelper>();
+            var helperList = new List<VRMSpringBoneHelper>();
             foreach (var springBone in springBones)
             {
-                var helper = new global::VRMSpringBoneHelper();
+                var helper = new VRMSpringBoneHelper();
                 helper.m_stiffnessForce = springBone.m_stiffnessForce;
                 helper.m_gravityPower = springBone.m_gravityPower;
                 helper.m_gravityDir = springBone.m_gravityDir;
@@ -181,7 +194,7 @@ namespace VRMSpringAutoCreator
                 foreach (var springBoneJson in springBoneJsons)
                 {
                     // 关键修正：通过AddComponent创建MonoBehaviour实例（而非new）
-                    var helper = tempGO.AddComponent<global::VRMSpringBoneHelper>();
+                    var helper = tempGO.AddComponent<VRMSpringBoneHelper>();
                     JsonUtility.FromJsonOverwrite(springBoneJson, helper); // 反序列化数据到实例
 
                     // 创建并配置VRoidSpringBone组件
