@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
 
 jobs:
   release:
@@ -17,28 +16,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generate release notes
-        id: notes
-        uses: googleapis/release-please-action@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          release-type: simple
-          tag-name: ${{ github.ref_name }}
-          package-name: VroidMMDTools
-          changelog-types: |
-            feat: 🚀 Features
-            fix: 🐛 Bug Fixes
-            docs: 📝 Documentation
-            chore: 🔧 Chores
-            refactor: ♻️ Refactoring
-            perf: ⚡ Performance
-            test: ✅ Tests
+      - name: Install git-cliff
+        run: |
+          curl -sL https://github.com/orhun/git-cliff/releases/download/v2.3.0/git-cliff-2.3.0-x86_64-unknown-linux-musl.tar.gz \
+            | tar -xz
+          sudo mv git-cliff /usr/local/bin/
 
-      - name: Create Release
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            RANGE=""
+          else
+            RANGE="$PREV_TAG..HEAD"
+          fi
+          echo "## Changelog" > RELEASE_NOTE.md
+          git-cliff $RANGE --tag ${{ github.ref_name }} >> RELEASE_NOTE.md
+          echo "release_body<<EOF" >> $GITHUB_OUTPUT
+          cat RELEASE_NOTE.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          body: ${{ steps.notes.outputs.release_notes }}
+          body: ${{ steps.changelog.outputs.release_body }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
