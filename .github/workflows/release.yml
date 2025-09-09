@@ -3,33 +3,42 @@ name: Create Release
 on:
   push:
     tags:
-      - 'v*'  # 当推送 v1.0.0 这样的标签时触发
+      - "v*"
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 获取所有历史提交
+          fetch-depth: 0
 
       - name: Generate release notes
-        id: release_notes
-        run: |
-          # 生成从上一个标签到当前标签的提交记录
-          git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD > release_notes.txt
-          echo "::set-output name=notes::$(cat release_notes.txt)"
+        id: notes
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release-type: simple
+          tag-name: ${{ github.ref_name }}
+          package-name: VroidMMDTools
+          changelog-types: |
+            feat: 🚀 Features
+            fix: 🐛 Bug Fixes
+            docs: 📝 Documentation
+            chore: 🔧 Chores
+            refactor: ♻️ Refactoring
+            perf: ⚡ Performance
+            test: ✅ Tests
 
       - name: Create Release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.release_notes }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref_name }}
-          body: ${{ steps.release_notes.outputs.notes }}
-          draft: false
-          prerelease: false
