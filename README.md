@@ -1,172 +1,141 @@
 # VroidMMDTools
 
+**Other Language Versions: [English](README.md), [中文](README_zh.md)**
 
-5分钟极速版视频教程：
+**5-Minute Quick Video Tutorial:**
 
+This tool primarily focuses on converting MMD (MikuMikuDance) files into Unity-compatible `.anim` files and animation controllers, while also adding facial expressions and camera curves. It streamlines many tedious and time-consuming tasks using scripts.
 
-<iframe src="//player.bilibili.com/player.html?isOutside=true&aid=114876030656458&bvid=BV1t7uSz4EG2&cid=31136219677&p=1" allowfullscreen="allowfullscreen" width="100%" height="500" scrolling="no" frameborder="0"></iframe>
+1. **Toolbox Plugin**  
+   Download: [https://github.com/maoxig/VroidMMDTools/releases/](https://github.com/maoxig/VroidMMDTools/releases/)
 
-主要是关于MMD转换成unity可用的anim和controller，并且添加表情和镜头曲线，利用脚本优化了许多繁琐费时的工作
+2. **MMD4Mecanim**: [http://stereoarts.jp/](http://stereoarts.jp/)  
+   (Alternatively, if you already have PMX2FBX, simply set the path accordingly.)
 
+**Regarding MMD**: This video/tool merely integrates existing tools and workflows. When converting or using MMD files, please adhere to the original MMD regulations and respect relevant copyrights. The author and this tool are not responsible for any damages caused to secondary users.
 
-1. 小工具箱插件
+Below is the detailed text tutorial. At the end, you’ll find a section on potential issues. It’s recommended to follow the text tutorial first. If problems arise, refer to the principles, known issues, and troubleshooting steps. If issues persist, feel free to provide feedback.
 
-https://github.com/maoxig/VroidMMDTools/releases/
+---
 
-2. MMD4Mecanim: http://stereoarts.jp/
+## Text Tutorial
 
-（或者如果已经有PMX2FBX直接设置下路径就行）
+### 0. Project Preparation
 
+Prepare the following: Unity, MMD4Mecanim (optional, but PMX2FBX is required), and this Unity toolbox plugin.
 
-关于MMD，本视频/工具仅仅是整合了一些已有的工具/思路，在转换、使用时请遵守原MMD的相关规定，尊重相关著作权。如有对二次使用者造成的损害，与本人、本工具无关。
+To import the Unity package, simply drag the `.unitypackage` file into the Unity Project window. If prompted during import, click "Yes."
 
-下面是图文教程，最后面有可能出现的问题，你可以先跟着图文过一遍，如果有问题优先看原理、存在的问题，然后想办法解决，如果还是有问题可以反馈。
+### 1. Verify Toolbox Functionality
 
-——————————————————————————————
-
-图文教程：
-
-### 0. 准备项目
-
-下载准备好Unity, MMD4Mecanim（可选，但是得有PMX2FBX），以及这个unity工具箱就行
-
-导入unity包只需把.unitypackage拖进project里，如果导入时有提示按yes即可。
-
-
-### 1. 确保这个工具箱是正常的
-
-导入工具箱插件之后，会在窗口上面多几个选项，主要是关注**VMD Morph Camera Animator Tool**和**VMD To Anim Converter**这两个选项。
+After importing the toolbox plugin, you’ll see new options in the Unity menu bar, specifically **VMD Morph Camera Animator Tool** and **VMD To Anim Converter**.
 
 ![alt text](resource~/step1.png)
 
-
-其中VMD To Anim Convter是单纯的**vmd转anim**的工具（把MMD4Mecanim重新封装优化了一下），里面也有一些配置，可以检查一下三个路径，可以检查一下配置。
+The **VMD To Anim Converter** is a dedicated tool for converting `.vmd` files to `.anim` files (an optimized re-encapsulation of MMD4Mecanim). It includes configuration options where you can verify the three paths.
 
 ![alt text](resource~/step1a.png)
 
+Open the **VMD Morph Camera Animator Tool** to access the main plugin window. Note: The default configurations are pre-set and should not be changed unless you know what you’re doing.
 
-然后点击打开**VMD Morph Camera Animator Tool**，进入插件主窗口。
+### 2. Prepare MMD Files
 
-这里说明一下，里面提供的配置默认都是设置好的，如果不知道要不要改那就是不要改。
-
-
-
-### 2. 准备MMD文件
-
-把要处理的MMD 动作.vmd，（镜头.vmd，表情.vmd）和音频（.mp3/.ogg/.wav）文件夹放到项目里（可以创个Workspace整洁一些）。这些资源获取的问题见评论区置顶。
+Place the MMD motion `.vmd` files (motion, camera, and facial expression `.vmd` files) and audio files (`.mp3`, `.ogg`, or `.wav`) into your Unity project. For organization, consider creating a `Workspace` folder. For details on acquiring these resources, check the pinned comments in the relevant discussion.
 
 ![alt text](resource~/step2.png)
 
+### 3. Generate Animation Clips from VMD or Use Existing Clips
 
+There are two scenarios:
 
-
-### 3. 从vmd生成动画剪辑，或者使用已有的动画剪辑
-
-这里有两种情况，一种是只有vmd文件，就把vmd拖进去，然后点击生成动画剪辑。
-
-还有一种情况是已经有了animClip（比如之前已经执行过生成动画剪辑，此时可以直接用Output里面存的），因此，也提供了直接使用anim的导入选项。
+1. **Only VMD Files Available**: Drag the `.vmd` file into the tool and click to generate an animation clip.
+2. **Existing `.anim` Clip**: If you’ve previously generated an animation clip (stored in the `Output` folder), you can directly import it using the provided option.
 
 ![alt text](resource~/step3.png)
 
+After generating the animation clip, an `.anim` file will be created in the `Output` folder. This file initially contains only character motion data. Camera and facial expression data will be added in later steps.
 
-点击从vmd生成动画剪辑之后，会在output里面生成一个anim文件，但是此时这里的anim是只包含人物运动数据的anim，因此我们在后面添加上镜头和表情。
+If an error occurs during generation, refer to the principles section. You can use MMD4Mecanim to extract the `.anim` clip and then import the existing clip.
 
-在生成动画剪辑时，如果出错，建议看一下原理，使用MMD4Mecanim提取出animClip，然后使用已有的animClip
+### 4. (Optional but Recommended) Import Camera VMD
 
-### 4. （可选但推荐）导入镜头vmd
-
-有些MMD的镜头和动作放在一个vmd里面，这时候还是拖前一个vmd就行。
+If the camera and motion data are combined in a single `.vmd` file, drag the same `.vmd` file used previously.
 
 ![alt text](resource~/step4.png)
 
+You can confidently import the camera data, as many issues have been fixed (see the referenced post for details). Camera motion is the soul of MMD, so it’s highly recommended to include it.
 
-你现在可以放心导入镜头，因为我已经在下面这个帖子里修复了很多问题，而且镜头是MMD的灵魂所在，我建议你加上。
+**New Feature**: The latest toolbox version includes a camera scaling option. For example, if a camera `.vmd` is designed for a 1.8m-tall character, the focal point will be set at 1.8m. If your character is only 1.6m tall, the camera may focus above the character’s head in-game. To fix this, scale the camera by a factor of 1.6/1.8 = 0.88 when importing the `.vmd`.
 
-新版本的工具箱多了一个镜头缩放的选项，我举个例子你就知道这是干嘛的：有一些镜头vmd是针对身高1.8m的角色设计的，那么在贴脸对焦时就会对焦在1.8m，那如果角色模型只有1.6m高，那此时在游戏里，镜头就会对焦在头顶上，所以在导入vmd时要缩放一下镜头（乘上1.6/1.8=0.88）。但是我上面那个补丁支持在游戏内动态调节缩放，更加自由，所以你通常现在不需要管他了，不过我还是强烈建议你可以略微调整，使得调整后他完美适配1.6m视线高度的角色（因为这是默认的VRoidMod视线高度），这样游戏局内里面自动计算的就总是正确的，不再需要局内手动调整
+### 5. Import Facial Expression VMD
 
-### 5.导入表情vmd
+Typically, facial expressions and motion are included in the same `.vmd` file, so you can reuse the previous `.vmd`. However, some files separate them, so the panel is designed to handle both cases.
 
-通常MMD的表情和动作放在一个vmd里面，这时候还是拖前一个vmd就行，但是有一些是分开的，所以我在设计面板时拆开来了
+### 6. Combine Animation Curves and Create Controller
 
-### 6.合并动画曲线、创建控制器
-
-预览形态键映射设置，选择你需要添加的曲线，然后点击**添加到动画并创建控制器**
+Preview the morph key mappings, select the curves you want to add, and click **Add to Animation and Create Controller**.
 
 ![alt text](resource~/step6.png)
 
+If the creation fails, a known issue is that selecting too many morph key mappings may cause errors (the exact cause is unknown). Try deselecting some morph keys and retry.
 
-这里如果创建失败，我目前已知的有些问题是如果形态键写入的太多有时候会报错，我也没找出原因，可以试试取消选择一些形态键映射。
+At this point, you could add audio and export, but it’s recommended to perform the following checks for safety.
 
-其实到这一步就已经可以添加音频并打包输出了，但是我们稳妥一些检查两步。
-
-
-
-**重要：新版本（v0.0.4之后）提供了一个基于Unity Timeline（通常会自带，非常古老的unity2017.1以下可能得装一下）的一键预览按钮，只需要拖一个已有的人物模型到框内，然后点击之后可以一键预览：**
+**Important**: Starting from version 0.0.4, a one-click preview button is available using Unity’s Timeline (included by default, though older Unity versions like 2017.1 or earlier may require installation). Drag an existing character model into the designated slot and click to preview:
 
 ![alt text](resource~/step6a.png)
 
+To preview the camera in Unity, you need a camera node that adheres to specific standards. A provided script automates the creation of a compliant camera. After creating it, click the Timeline’s play button to view the camera motion directly in the Game window without running the game. This combines the next three steps into one, significantly improving efficiency.
 
-此外要在unity内部预览镜头的话得在人物节点创建一个一定规范的镜头，我已经提供了一个脚本一键创建符合规范的镜头，允许创建脚本、点击按钮后，再点击Timeline的播放，你可以直接在game窗口直接看到运镜的效果，而不需要播放游戏，因此后面三步可以合并到一步，大大提高检查效率。
+### 6.5 Audio Check (Optional)
 
+Ensure the audio file is appropriately sized. Then verify that the audio aligns with the motion and syncs correctly.
 
+- **Case 1**: If the motion distribution includes an audio file (`.mp3`, `.ogg`, `.wav`), it typically doesn’t need checking—just drag it in.
+- **Case 2**: For self-downloaded music, verify the beat alignment and adjust the audio if necessary (e.g., if it’s missing or has extra frames). Use Unity’s Timeline to check alignment or adjust audio with external tools. Here are two methods for reference (though better methods may exist):
 
-### 6.5 检查步骤：音频检查（可选）：
+  1. **Simple Case**: If the audio is noticeably off (e.g., missing or extra duration), use `ffmpeg` to trim or adjust it.
+  2. **Complex Case**: Refer to [this Bilibili post on extracting audio and aligning](https://www.bilibili.com/opus/570596146267836164). Extract the audio from a distributed video (search for online extractors), identify the matching frame in Timeline, and calculate the audio offset.
 
-
-这里建议音频不要太大，适当即可。然后我们需要检查音频和动作踩点、同步。
-
-情况一：动作配布里面提供了音频.mp3/.ogg/.wav通常不需要检查，直接拖进去就行；
-
-情况二：自己下载的音乐，我们得首先检查音乐踩点没，然后调整下音频（通常音频可能缺失/多几帧）。检查对轴可以用unity的Timeline功能，调整音频可以用其他音频工具、插件。这里说一下我的两种方法，仅供参考，也许有更好的方法：
-
-1. 比较简单的情况，例如很明显可以观察到音频缺失、多了多久，直接使用ffmpeg修改一下音频
-
-2. 比较复杂的情况，可以参考：[【MMD相关】扒音轨和对轴 - 哔哩哔哩的思路](https://www.bilibili.com/opus/570596146267836164)。可以把配布视频扒下来（搜在线提取器），然后在Timeline里面找画面相同的那一帧，然后看音频差了多少，
-3. 
 ![alt text](resource~/step6b.png)
 
+Afterward, fine-tune the audio using the toolbox’s simple audio editor. The editor uses `ffmpeg` (optional), which you can source from your computer (many audio/video software packages include it).
 
-之后简单微调一下音频即可，工具箱里提供了一个简易音频编辑器，其中用到的ffmpeg（可选）可以随便用电脑里有的就行（因为大部分音频、视频软件里面可能都塞了一个）
+### 7. Character Orientation Check (Optional)
 
-### 7. 检查步骤：人物方向检查（可选）
+Locate the newly created animation in the `Output` folder and preview it. Ensure the character’s facing direction (red arrow) aligns with the blue arrow most of the time. If misaligned, adjust the first offset in the **Root Transform Rotation** panel.
 
-找到Output新创建的动画，预览一下，确保人物面对的方向（红色箭头）和蓝色箭头在大部分时候基本上对齐，不对齐的话可以拖动修改第一个offset（Root Transform Rotation那个）。
-
-如果人物的初始位置很奇怪，可以尝试改第三个Center of Mass改为original
+If the character’s initial position is incorrect, try setting the **Center of Mass** to "Original."
 
 ![alt text](resource~/step7.png)
 
+### 8. Final Check (Optional)
 
-### 8. 检查步骤：最终检查（可选）
-
-利用一个已有的人物检查一切正常（可以用vrm的人物预览一下），主要是关注骨架、动作、表情、镜头（可选）。要在unity内部预览镜头的话得在人物节点创建一个一定规范的镜头，我已经提供了一个脚本一键创建符合规范的镜头；
+Use an existing character model (e.g., a VRM model) to verify that the skeleton, motion, facial expressions, and camera (if included) work correctly. To preview the camera in Unity, create a compliant camera node using the provided script.
 
 ![alt text](resource~/step8.png)
 
-
-不过正常导出角色模型到游戏里是不需要带镜头的，我们这里只是为了在unity里面测试
+For exporting character models to games, the camera is typically not needed—this is only for Unity testing.
 
 ![alt text](resource~/step8a.png)
 
+Drag the generated controller from the `Output` folder to the character model’s Animator component. Clicking "Play" will animate the character, allowing you to check the camera, expressions, and motions.
 
-我们把刚刚的output里面生成的controller拖到人物模型的这里，这样你点击播放play之后，角色就会动起来，可以检查镜头、表情、动作等等。
-
-此外，你也可以像之前那样使用Timeline检查，我比较喜欢用Timeline，因为可以同时检查音频、动作、镜头，并且不需要点击play播放就能检查（播放的话unity得等几秒，而且不能编辑修改）
+Alternatively, use Timeline for inspection, as it allows simultaneous checking of audio, motion, and camera without needing to play the game (which saves time and allows editing).
 
 ![alt text](resource~/step8b.png)
 
+### 9. Package and Export
 
-### 9. 打包输出
-一切无误就可以点击打包按钮打包导出了，自动打包会自动检测、重命名控制器、动画、音频，然后输出为unity3d。可以直接把打包输出路径设在VRoidMod的dances路径下，这样打开游戏就能检查是否有问题
+If everything is correct, click the package button to export. The tool automatically detects, renames the controller, animation, and audio, and outputs a `.unity3d` file. Set the output path to the `dances` folder to check the results directly in-game.
 
-————————————————————————————————————
+---
 
+## Potential Issues
 
-可能的问题：
+1. **Lip Expression Parsing Errors**: For tools like GETCHAT, lip expressions may fail to parse, likely due to issues with the `.vmd` file or the outdated parsing library. A workaround is to re-import the lip data in MikuMikuDance and re-export the `.vmd` file to refresh it, which should resolve the issue.
 
-1. 有些例如GETCHAT好像嘴唇表情好像在解析时报错了，但是似乎是vmd本身或者解析库的问题，因为那个解析库是一个几年的老东西了，即使怀疑是它的问题也无能为力。最终我的解决方案是，利用MikuMikuDance把嘴唇数据重新导入，然后再重新导出（相当于刷新一下），这样就能成功解析嘴唇了
+2. **Motion Issues with VMD Files**: Some dance `.vmd` files rely heavily on the bone structure of the provided `.pmx` model. If errors occur (e.g., erratic motion, tangled limbs, or floating characters), try using a more compatible `.pmx` model. In some cases, you may need to modify the model’s bones using PMX Editor.
 
-2. 有些舞蹈vmd非常依赖于提供解析的pmx模型骨骼，如果解析时报错、动作抽风、脚部手臂打结、人物飘逸飞天等等，需要更换一个更加适配的pmx模型（有些可能需要用pmxeditor改模修改骨骼适配）
-
-3. 如果提取出来的animClip里面，动作、表情、镜头都一切正常，但是初始位置、方向等等不正常，这通常是unity抽风，去第7步看那个面板调节那几个选项试试
+3. **Incorrect Initial Position or Orientation**: If the extracted `.anim` clip has correct motion, expressions, and camera but the initial position or direction is off, this is likely a Unity issue. Refer to Step 7 and adjust the panel options (e.g., Root Transform Rotation or Center of Mass).
 
