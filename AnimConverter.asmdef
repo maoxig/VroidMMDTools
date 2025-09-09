@@ -10,7 +10,9 @@
         "Unity.Timeline",
         "VRoidModSpringBones"
     ],
-    "includePlatforms": [],
+    "includePlatforms": [
+        "Editor"
+    ],
     "excludePlatforms": [],
     "allowUnsafeCode": true,
     "overrideReferences": false,
