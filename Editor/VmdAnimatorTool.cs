@@ -374,6 +374,13 @@ namespace VroidMMDTools
                 {
                     EditorGUILayout.LabelField($"✓ 已解析 {vmdCameraFrames.Count} 个镜头帧 (来自 {cameraVmdFilePaths.Count} 个文件)", EditorStyles.miniLabel);
                 }
+
+                //  清空所有镜头帧
+                if (GUILayout.Button("清空所有镜头帧"))
+                {
+                    ResetCameraVmdState();
+                    Repaint();
+                }
             }
             EditorGUILayout.Space();
         }
@@ -424,6 +431,14 @@ namespace VroidMMDTools
                 var uniqueMorphs = vmdMorphFrames.Select(f => f.MorphName).Distinct().Count();
                 EditorGUILayout.LabelField($"✓ 已解析 {vmdMorphFrames.Count} 个表情帧，包含 {uniqueMorphs} 种表情 (来自 {morphVmdFilePaths.Count} 个文件)", EditorStyles.miniLabel);
             }
+            // 清空所有表情帧
+
+            if (GUILayout.Button("清空所有表情帧"))
+            {
+                ResetMorphVmdState();
+                Repaint();
+            }
+
             EditorGUILayout.Space();
         }
 
@@ -1090,7 +1105,7 @@ namespace VroidMMDTools
             EditorGUILayout.Space();
         }
 
-#endregion
+        #endregion
 
         #region 新增和修改的核心方法
 
@@ -1344,7 +1359,21 @@ namespace VroidMMDTools
 
                 // 设置动画属性
                 AnimationClipSettings clipSettings = AnimationUtility.GetAnimationClipSettings(baseClip);
+                // Root Transform Rotation
                 clipSettings.loopTime = false;
+                clipSettings.loopBlend = true;
+
+                clipSettings.keepOriginalOrientation = true; // Based Upon: Original
+                                                             // Bake Into Pose: true
+
+                // Root Transform Position Y
+                clipSettings.keepOriginalPositionY = true;   // Based Upon: Original
+                                                             // Bake Into Pose: true
+
+                // Root Transform Position XZ
+                clipSettings.keepOriginalPositionXZ = true;  // Based Upon: Original
+                                                             // Bake Into Pose: true
+
                 clipSettings.loopBlendOrientation = true;
                 clipSettings.loopBlendPositionY = true;
                 clipSettings.loopBlendPositionXZ = true;
@@ -1488,7 +1517,7 @@ namespace VroidMMDTools
             bool hasValidCameraData = !addCameraCurves || cameraVmdParsed;
             bool hasValidModel = directMappingMode || (targetModel != null && bodyRenderer != null);
 
-            return hasValidSource && hasValidMorphData && hasValidCameraData && hasValidModel;
+            return hasValidSource && hasValidCameraData && hasValidModel;
         }
 
         private bool CanBuildBundle(string outputPath)
