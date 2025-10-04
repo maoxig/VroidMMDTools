@@ -129,7 +129,7 @@ namespace VroidMMDTools
         AnimExtractionMode animExtractionMode = AnimExtractionMode.FromVmdFile;
 
         // 是否使用快速配置
-        private bool useQuickConfig = true;
+        private bool useQuickConfig = false;
 
         // PMX辅助文件
         private bool showPmxOptions = false;
