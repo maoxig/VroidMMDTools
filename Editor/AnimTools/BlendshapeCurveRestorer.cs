@@ -1,4 +1,3 @@
-// Assets/Editor/BlendshapeCurveRestorer.cs
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,8 +13,6 @@ public class BlendshapeCurveRestorer : EditorWindow
     private string saveSuffix = "_restored";
     private Vector2 scrollPos;
 
-    // 你已经提供的候选列表（可在窗口里编辑或改成从文件加载）
-    // private List<string> morphCandidates = new List<string>(){};
     private List<string> morphCandidates = new List<string>
     {
         "まばたき","笑い",
@@ -936,7 +933,6 @@ public class BlendshapeCurveRestorer : EditorWindow
 
     };
 
-    // private Dictionary<string, string> morphAlias = new Dictionary<string, string>{};
     private Dictionary<string, string> morphAlias = new Dictionary<string, string>
     {
         ["CasualSlacks"] = "カジュアルスラックス",
@@ -1562,24 +1558,24 @@ public class BlendshapeCurveRestorer : EditorWindow
         ["Demon"] = "魔",
     };
 
-    private List<string> excludeMorphs = new List<string>()
+
+    private List<uint> excludeHashes = new List<uint>
     {
-        // Common non-blendshape morphs to exclude
-        // Add more as needed
-    };
-    // private List<uint> excludeHashes = new List<uint>();
-    private List<uint> excludeHashes = new List<uint>()
-    {
-        // Known problematic hashes to exclude
         1968285791,
         3655657299,
         3956442577
     };
-    // CRC map: hashedValue -> desired propertyName (e.g. "blendShape.まばたき")
     private Dictionary<uint, string> crcMap = new Dictionary<uint, string>();
-
-    // CRC table for fast compute
     private static readonly uint[] crcTable = BuildCrcTable();
+
+    public struct RestoreResult
+    {
+        public bool Success;
+        public string OutputPath;
+        public int ReplacedCount;
+        public HashSet<uint> UnmappedHashes;
+        public string ErrorMessage;
+    }
 
     [MenuItem("AnimTools/Blendshape Restorer")]
     public static void ShowWindow()
@@ -1617,8 +1613,8 @@ public class BlendshapeCurveRestorer : EditorWindow
         EditorGUILayout.Space();
         if (GUILayout.Button("Build CRC Map (preview)"))
         {
-            BuildCrcMap();
-            Debug.Log($"[BlendshapeRestorer] crcMap built with {crcMap.Count} entries.");
+            BuildCrcMap(morphCandidates);
+            Debug.Log($"[BlendshapeRestorer] CRC map built with {crcMap.Count} entries.");
         }
 
         EditorGUILayout.Space();
@@ -1630,211 +1626,222 @@ public class BlendshapeCurveRestorer : EditorWindow
             }
             else
             {
-                BuildCrcMap();
-                RestoreClip(sourceClip, saveSuffix);
-            }
-        }
-    }
-
-    private void BuildCrcMap()
-    {
-        crcMap.Clear();
-
-        foreach (var m in morphCandidates)
-        {
-            if (string.IsNullOrEmpty(m)) continue;
-
-            // We want the final property name to be: "blendShape.<morph>"
-            string desired = $"blendShape.{m}";
-
-            // Variant 1: CRC of "blendShape.<morph>" (common if Unity hashed full property name)
-            uint crc1 = ComputeCrc32Standard(Encoding.UTF8.GetBytes(desired));
-            if (!crcMap.ContainsKey(crc1)) crcMap[crc1] = desired;
-
-            // Variant 2: CRC of just "<morph>" (some serializers/hashers only hashed the plain morph name)
-            uint crc2 = ComputeCrc32Standard(Encoding.UTF8.GetBytes(m));
-            if (!crcMap.ContainsKey(crc2)) crcMap[crc2] = desired;
-
-            // Variant 3: alternative variant without final XOR (robustness: some tools differ)
-            uint crc3 = ComputeCrc32NoXor(Encoding.UTF8.GetBytes(desired));
-            if (!crcMap.ContainsKey(crc3)) crcMap[crc3] = desired;
-
-            // uint crc4 = ComputeCrc32NoXor(Encoding.UTF8.GetBytes(m));
-            // if (!crcMap.ContainsKey(crc4)) crcMap[crc4] = desired;
-
-            // Note: collisions are rare for reasonable lists; if collision happens
-            // the first inserted mapping is kept.
-        }
-    }
-
-    public void RestoreClip(AnimationClip clip, string suffix)
-    {
-        string srcPath = AssetDatabase.GetAssetPath(clip);
-        if (string.IsNullOrEmpty(srcPath))
-        {
-            EditorUtility.DisplayDialog("Error", "Can't determine asset path for selected clip.", "OK");
-            return;
-        }
-
-        string dir = Path.GetDirectoryName(srcPath);
-        string name = Path.GetFileNameWithoutExtension(srcPath);
-        string ext = Path.GetExtension(srcPath);
-        string destPath = Path.Combine(dir, name + suffix + ext).Replace("\\", "/");
-
-        // If file exists, ask user
-        if (AssetDatabase.LoadAssetAtPath<AnimationClip>(destPath) != null)
-        {
-            if (!EditorUtility.DisplayDialog("Overwrite?", $"Destination {destPath} already exists. Overwrite?", "Yes", "Cancel"))
-            {
-                Debug.Log("[BlendshapeRestorer] Operation cancelled by user.");
-                return;
-            }
-            AssetDatabase.DeleteAsset(destPath);
-        }
-
-        // Copy asset to create a working copy
-        if (!AssetDatabase.CopyAsset(srcPath, destPath))
-        {
-            EditorUtility.DisplayDialog("Error", $"Failed to copy asset to {destPath}", "OK");
-            return;
-        }
-        AssetDatabase.ImportAsset(destPath);
-        AssetDatabase.Refresh();
-
-        var newClip = AssetDatabase.LoadAssetAtPath<AnimationClip>(destPath);
-        if (newClip == null)
-        {
-            EditorUtility.DisplayDialog("Error", "Failed to load copied animation clip.", "OK");
-            return;
-        }
-
-        int replacedCount = 0;
-        var unmapped = new HashSet<uint>();
-
-        // Process float (regular) curves
-        var floatBindings = AnimationUtility.GetCurveBindings(newClip).ToList();
-        foreach (var b in floatBindings)
-        {
-            string prop = b.propertyName;
-            uint? foundHash = TryExtractFirstUInt(prop);
-            if (!foundHash.HasValue) continue;
-
-            uint h = foundHash.Value;
-
-            // Skip if hash is in exclude list
-            if (excludeHashes.Contains(h))
-            {
-                AnimationUtility.SetEditorCurve(newClip, b, null);
-                continue;
-            }
-
-            if (crcMap.TryGetValue(h, out string newPropName))
-            {
-                // Check for alias in morphAlias dictionary
-                string newMorphName = newPropName.Substring(11); // Remove "blendShape." prefix
-                if (morphAlias.TryGetValue(newMorphName, out string aliasPropName))
+                BuildCrcMap(morphCandidates);
+                var result = RestoreClipInternal(sourceClip, saveSuffix, morphCandidates, morphAlias, excludeHashes, crcMap);
+                if (result.Success)
                 {
-                    newMorphName = "blendShape." + aliasPropName;
+                    EditorUtility.DisplayDialog("Blendshape Restorer", $"Done. Replaced {result.ReplacedCount} curve(s).\nUnmapped unique hashes: {result.UnmappedHashes.Count}.", "OK");
+                    if (result.UnmappedHashes.Count > 0)
+                    {
+                        Debug.Log($"[BlendshapeRestorer] Unmapped CRC32 values for {AssetDatabase.GetAssetPath(sourceClip)}:");
+                        foreach (var u in result.UnmappedHashes)
+                        {
+                            Debug.Log($"0x{u:X8} ({u})");
+                        }
+                    }
+                    Debug.Log($"[BlendshapeRestorer] Restored clip saved at: {result.OutputPath}");
+                    Selection.activeObject = AssetDatabase.LoadAssetAtPath<AnimationClip>(result.OutputPath);
                 }
                 else
                 {
-                    newMorphName = newPropName; // Keep original if no alias
+                    EditorUtility.DisplayDialog("Error", result.ErrorMessage, "OK");
                 }
-
-                // If already the target name, skip
-                if (prop == newMorphName) continue;
-
-                var curve = AnimationUtility.GetEditorCurve(newClip, b);
-                var newBinding = b;
-                newBinding.propertyName = newMorphName;
-
-                // Set new curve and remove old one
-                AnimationUtility.SetEditorCurve(newClip, newBinding, curve);
-                AnimationUtility.SetEditorCurve(newClip, b, null);
-                replacedCount++;
-            }
-            else
-            {
-                unmapped.Add(h);
             }
         }
-
-        // Process object-reference curves (just in case)
-        var objBindings = AnimationUtility.GetObjectReferenceCurveBindings(newClip).ToList();
-        foreach (var b in objBindings)
-        {
-            string prop = b.propertyName;
-            uint? foundHash = TryExtractFirstUInt(prop);
-            if (!foundHash.HasValue) continue;
-
-            uint h = foundHash.Value;
-
-            // Skip if hash is in exclude list
-            if (excludeHashes.Contains(h))
-            {
-                AnimationUtility.SetObjectReferenceCurve(newClip, b, null);
-                continue;
-            }
-
-            if (crcMap.TryGetValue(h, out string newPropName))
-            {
-                // Check for alias in morphAlias dictionary
-                if (morphAlias.TryGetValue(newPropName, out string aliasPropName))
-                {
-                    newPropName = aliasPropName;
-                }
-
-                // If already the target name, skip
-                if (prop == newPropName) continue;
-
-                var keyframes = AnimationUtility.GetObjectReferenceCurve(newClip, b);
-                var newBinding = b;
-                newBinding.propertyName = newPropName;
-
-                AnimationUtility.SetObjectReferenceCurve(newClip, newBinding, keyframes);
-                AnimationUtility.SetObjectReferenceCurve(newClip, b, null);
-                replacedCount++;
-            }
-            else
-            {
-                unmapped.Add(h);
-            }
-        }
-
-        AssetDatabase.SaveAssets();
-        AssetDatabase.ImportAsset(destPath);
-        AssetDatabase.Refresh();
-
-        // Show result dialog + log unmapped
-        string msg = $"Done. Replaced {replacedCount} curve(s).\nUnmapped unique hashes: {unmapped.Count}.";
-        EditorUtility.DisplayDialog("Blendshape Restorer", msg, "OK");
-
-        if (unmapped.Count > 0)
-        {
-            Debug.Log("[BlendshapeRestorer] Unmapped CRC32 values (add these morph names to candidate list if you know them):");
-            foreach (var u in unmapped)
-            {
-                Debug.Log(u + "  (0x" + u.ToString("X8") + ")");
-            }
-        }
-
-        Debug.Log($"[BlendshapeRestorer] Restored clip saved at: {destPath}");
-        Selection.activeObject = newClip;
     }
 
-    // Try to extract the first run of digits from a property string
+    public static RestoreResult RestoreClipInternal(AnimationClip clip, string suffix, List<string> morphCandidates,
+        Dictionary<string, string> morphAlias, List<uint> excludeHashes, Dictionary<uint, string> crcMap)
+    {
+        var result = new RestoreResult { Success = false, UnmappedHashes = new HashSet<uint>() };
+        string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+        try
+        {
+            string srcPath = AssetDatabase.GetAssetPath(clip);
+            if (string.IsNullOrEmpty(srcPath))
+            {
+                result.ErrorMessage = "Can't determine asset path for selected clip.";
+                Debug.LogError($"[BlendshapeRestorer] {timestamp}: {result.ErrorMessage} Clip: {clip.name}");
+                return result;
+            }
+
+            string dir = Path.GetDirectoryName(srcPath);
+            string name = Path.GetFileNameWithoutExtension(srcPath);
+            string ext = Path.GetExtension(srcPath);
+            string destPath = Path.Combine(dir, name + suffix + ext).Replace("\\", "/");
+            result.OutputPath = destPath;
+
+            // Check if destination exists
+            if (AssetDatabase.LoadAssetAtPath<AnimationClip>(destPath) != null)
+            {
+                if (!EditorUtility.DisplayDialog("Overwrite?", $"Destination {destPath} already exists. Overwrite?", "Yes", "Cancel"))
+                {
+                    result.ErrorMessage = "Operation cancelled by user.";
+                    Debug.Log($"[BlendshapeRestorer] {timestamp}: {result.ErrorMessage} Clip: {clip.name}");
+                    return result;
+                }
+                AssetDatabase.DeleteAsset(destPath);
+            }
+
+            // Copy asset
+            if (!AssetDatabase.CopyAsset(srcPath, destPath))
+            {
+                result.ErrorMessage = $"Failed to copy asset to {destPath}";
+                Debug.LogError($"[BlendshapeRestorer] {timestamp}: {result.ErrorMessage} Clip: {clip.name}");
+                return result;
+            }
+
+            AssetDatabase.StartAssetEditing();
+            try
+            {
+                AssetDatabase.ImportAsset(destPath);
+                var newClip = AssetDatabase.LoadAssetAtPath<AnimationClip>(destPath);
+                if (newClip == null)
+                {
+                    result.ErrorMessage = "Failed to load copied animation clip.";
+                    Debug.LogError($"[BlendshapeRestorer] {timestamp}: {result.ErrorMessage} Clip: {clip.name}");
+                    return result;
+                }
+
+                int replacedCount = 0;
+                var unmapped = new HashSet<uint>();
+
+                // Helper to extract blendshape name
+                string ExtractBlendshapeName(string prop) => prop.StartsWith("blendShape.") ? prop.Substring(11) : prop;
+
+                // Process float curves
+                var floatBindings = AnimationUtility.GetCurveBindings(newClip).ToList();
+                foreach (var b in floatBindings)
+                {
+                    string prop = b.propertyName;
+                    uint? foundHash = TryExtractFirstUInt(prop);
+                    if (!foundHash.HasValue) continue;
+
+                    uint h = foundHash.Value;
+                    if (excludeHashes.Contains(h))
+                    {
+                        AnimationUtility.SetEditorCurve(newClip, b, null);
+                        Debug.Log($"[BlendshapeRestorer] {timestamp}: Excluded hash {h:X8} for curve {prop} in {clip.name}");
+                        continue;
+                    }
+
+                    if (crcMap.TryGetValue(h, out string newPropName))
+                    {
+                        string blendshape = ExtractBlendshapeName(newPropName);
+                        if (morphAlias.TryGetValue(blendshape, out string alias))
+                        {
+                            string aliasedProp = $"blendShape.{alias}";
+                            if (prop != aliasedProp)
+                            {
+                                newPropName = aliasedProp;
+                            }
+                        }
+
+                        if (prop == newPropName) continue;
+
+                        var curve = AnimationUtility.GetEditorCurve(newClip, b);
+                        var newBinding = b;
+                        newBinding.propertyName = newPropName;
+                        AnimationUtility.SetEditorCurve(newClip, newBinding, curve);
+                        AnimationUtility.SetEditorCurve(newClip, b, null);
+                        replacedCount++;
+                        Debug.Log($"[BlendshapeRestorer] {timestamp}: Replaced curve {prop} -> {newPropName} in {clip.name}");
+                    }
+                    else
+                    {
+                        unmapped.Add(h);
+                    }
+                }
+
+                // Process object-reference curves
+                var objBindings = AnimationUtility.GetObjectReferenceCurveBindings(newClip).ToList();
+                foreach (var b in objBindings)
+                {
+                    string prop = b.propertyName;
+                    uint? foundHash = TryExtractFirstUInt(prop);
+                    if (!foundHash.HasValue) continue;
+
+                    uint h = foundHash.Value;
+                    if (excludeHashes.Contains(h))
+                    {
+                        AnimationUtility.SetObjectReferenceCurve(newClip, b, null);
+                        Debug.Log($"[BlendshapeRestorer] {timestamp}: Excluded hash {h:X8} for object curve {prop} in {clip.name}");
+                        continue;
+                    }
+
+                    if (crcMap.TryGetValue(h, out string newPropName))
+                    {
+                        string blendshape = ExtractBlendshapeName(newPropName);
+                        if (morphAlias.TryGetValue(blendshape, out string alias))
+                        {
+                            string aliasedProp = $"blendShape.{alias}";
+                            if (prop != aliasedProp && AnimationUtility.GetObjectReferenceCurve(newClip, new EditorCurveBinding { path = b.path, propertyName = aliasedProp, type = b.type }) == null)
+                            {
+                                newPropName = aliasedProp;
+                            }
+                        }
+
+                        if (prop == newPropName) continue;
+
+                        var keyframes = AnimationUtility.GetObjectReferenceCurve(newClip, b);
+                        var newBinding = b;
+                        newBinding.propertyName = newPropName;
+                        AnimationUtility.SetObjectReferenceCurve(newClip, newBinding, keyframes);
+                        AnimationUtility.SetObjectReferenceCurve(newClip, b, null);
+                        replacedCount++;
+                        Debug.Log($"[BlendshapeRestorer] {timestamp}: Replaced object curve {prop} -> {newPropName} in {clip.name}");
+                    }
+                    else
+                    {
+                        unmapped.Add(h);
+                    }
+                }
+
+                result.Success = true;
+                result.ReplacedCount = replacedCount;
+                result.UnmappedHashes = unmapped;
+            }
+            finally
+            {
+                AssetDatabase.SaveAssets();
+                AssetDatabase.StopAssetEditing();
+                AssetDatabase.Refresh();
+            }
+        }
+        catch (Exception ex)
+        {
+            result.ErrorMessage = $"Unexpected error: {ex.Message}";
+            Debug.LogError($"[BlendshapeRestorer] {timestamp}: {result.ErrorMessage} Clip: {clip.name}\n{ex.StackTrace}");
+        }
+
+        return result;
+    }
+
+    private void BuildCrcMap(List<string> morphCandidates)
+    {
+        crcMap.Clear();
+        foreach (var m in morphCandidates)
+        {
+            if (string.IsNullOrEmpty(m)) continue;
+            string desired = $"blendShape.{m}";
+            uint crc1 = ComputeCrc32Standard(Encoding.UTF8.GetBytes(desired));
+            if (!crcMap.ContainsKey(crc1)) crcMap[crc1] = desired;
+            uint crc2 = ComputeCrc32Standard(Encoding.UTF8.GetBytes(m));
+            if (!crcMap.ContainsKey(crc2)) crcMap[crc2] = desired;
+            uint crc3 = ComputeCrc32NoXor(Encoding.UTF8.GetBytes(desired));
+            if (!crcMap.ContainsKey(crc3)) crcMap[crc3] = desired;
+        }
+    }
+
     private static uint? TryExtractFirstUInt(string s)
     {
         if (string.IsNullOrEmpty(s)) return null;
         var m = Regex.Match(s, @"\d+");
         if (!m.Success) return null;
-        if (uint.TryParse(m.Value, out uint val)) return val;
-        return null;
+        return uint.TryParse(m.Value, out uint val) ? val : null;
     }
 
-    #region CRC helpers
-
-    // Build CRC table for polynomial 0xEDB88320
     private static uint[] BuildCrcTable()
     {
         uint poly = 0xEDB88320;
@@ -1844,16 +1851,14 @@ public class BlendshapeCurveRestorer : EditorWindow
             uint crc = i;
             for (int j = 0; j < 8; ++j)
             {
-                if ((crc & 1) == 1) crc = (crc >> 1) ^ poly;
-                else crc >>= 1;
+                crc = (crc & 1) == 1 ? (crc >> 1) ^ poly : crc >> 1;
             }
             table[i] = crc;
         }
         return table;
     }
 
-    // Standard CRC32 (initial 0xFFFFFFFF, final XOR 0xFFFFFFFF) — common "CRC-32" implementation
-    private static uint ComputeCrc32Standard(byte[] bytes)
+    public static uint ComputeCrc32Standard(byte[] bytes)
     {
         uint crc = 0xFFFFFFFF;
         foreach (var b in bytes)
@@ -1863,8 +1868,7 @@ public class BlendshapeCurveRestorer : EditorWindow
         return crc ^ 0xFFFFFFFF;
     }
 
-    // Alternative variant WITHOUT final XOR (some tools differ) — included for robustness
-    private static uint ComputeCrc32NoXor(byte[] bytes)
+    public static uint ComputeCrc32NoXor(byte[] bytes)
     {
         uint crc = 0;
         foreach (var b in bytes)
@@ -1873,6 +1877,4 @@ public class BlendshapeCurveRestorer : EditorWindow
         }
         return crc;
     }
-
-    #endregion
 }
