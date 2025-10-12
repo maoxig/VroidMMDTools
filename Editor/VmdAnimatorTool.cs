@@ -14,6 +14,9 @@ using System.Threading;
 // Task
 using System.Threading.Tasks;
 using UnityEngine.Playables;
+using static VroidMMDTools.LocalizationManager;
+using static VroidMMDTools.L10nKeys;
+
 
 namespace VroidMMDTools
 {
@@ -150,6 +153,7 @@ namespace VroidMMDTools
             EditorGUILayout.LabelField("VMD Morph Animator Tool", EditorStyles.boldLabel);
             EditorGUILayout.Space();
 
+            DrawLanguageSelector();
             // 1. 动画提取部分
             var _ = DrawAnimationExtractionSection();
             DrawSeparator();
@@ -180,20 +184,35 @@ namespace VroidMMDTools
 
             EditorGUILayout.EndScrollView();
         }
+        private void DrawLanguageSelector()
+        {
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField(Get(LANGUAGE_LABEL), GUILayout.Width(120));
+
+            var newLang = (Language)EditorGUILayout.EnumPopup(CurrentLanguage, GUILayout.Width(100));
+            if (newLang != CurrentLanguage)
+            {
+                CurrentLanguage = newLang;
+                Repaint();
+            }
+
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.Space();
+        }
 
         #region 提取部分的UI和逻辑
         private async Task DrawAnimationExtractionSection()
         {
-            EditorGUILayout.LabelField("1. 动画提取", EditorStyles.boldLabel);
-            animExtractionMode = (AnimExtractionMode)EditorGUILayout.EnumPopup("动画来源", animExtractionMode);
+            EditorGUILayout.LabelField(Get(SECTION_ANIMATION), EditorStyles.boldLabel);
+            animExtractionMode = (AnimExtractionMode)EditorGUILayout.EnumPopup(Get(ANIM_SOURCE), animExtractionMode);
 
             if (animExtractionMode == AnimExtractionMode.FromExistingClip)
             {
                 EditorGUILayout.BeginHorizontal();
                 sourceClip = (AnimationClip)EditorGUILayout.ObjectField(
-                    "已有动画剪辑", sourceClip, typeof(AnimationClip), false);
+                    Get(EXISTING_CLIP), sourceClip, typeof(AnimationClip), false);
 
-                if (GUILayout.Button("清空", GUILayout.Width(60)))
+                if (GUILayout.Button(Get(BTN_CLEAR), GUILayout.Width(60)))
                 {
                     sourceClip = null;
                     ResetAnimVmdState();
@@ -203,32 +222,32 @@ namespace VroidMMDTools
             else // FromVmdFile
             {
                 // 使用通用拖拽框方法
-                animVmdFilePath = DrawVmdDragAndDropArea(animVmdFilePath, "动画VMD文件", "浏览...", "清空");
+                animVmdFilePath = DrawVmdDragAndDropArea(animVmdFilePath, Get(ANIM_VMD_FILE), Get(BTN_BROWSE), Get(BTN_CLEAR));
                 // 配置超时秒
-                timeoutSeconds = EditorGUILayout.IntField("转换超时（秒）", timeoutSeconds);
+                timeoutSeconds = EditorGUILayout.IntField(Get(TIMEOUT_SECONDS), timeoutSeconds);
                 // 帮助信息：如果转换失败，尝试手动生成anim文件
-                EditorGUILayout.HelpBox("如果转换失败，请尝试手动生成anim文件", MessageType.Info);
+                EditorGUILayout.HelpBox(Get(HELP_CONVERSION_FAIL), MessageType.Info);
 
                 // 快速配置选项
-                useQuickConfig = EditorGUILayout.Toggle("使用快速转换配置文件", useQuickConfig);
+                useQuickConfig = EditorGUILayout.Toggle(Get(QUICK_CONFIG), useQuickConfig);
 
                 // PMX辅助选项
-                showPmxOptions = EditorGUILayout.Foldout(showPmxOptions, "使用PMX/PMD模型辅助转换（可选）");
+                showPmxOptions = EditorGUILayout.Foldout(showPmxOptions, Get(PMX_ASSIST));
                 if (showPmxOptions)
                 {
                     EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.LabelField("PMX/PMD文件", GUILayout.Width(EditorGUIUtility.labelWidth));
+                    EditorGUILayout.LabelField(Get(PMX_FILE), GUILayout.Width(EditorGUIUtility.labelWidth));
                     if (!string.IsNullOrEmpty(pmxFilePath) && File.Exists(pmxFilePath))
                     {
                         EditorGUILayout.LabelField(Path.GetFileName(pmxFilePath), EditorStyles.objectFieldThumb);
                     }
                     else
                     {
-                        EditorGUILayout.LabelField("未选择PMX/PMD文件", EditorStyles.objectFieldThumb);
+                        EditorGUILayout.LabelField(Get(PMX_NOT_SELECTED), EditorStyles.objectFieldThumb);
                     }
-                    if (GUILayout.Button("浏览...", GUILayout.Width(80)))
+                    if (GUILayout.Button(Get(BTN_BROWSE), GUILayout.Width(80)))
                     {
-                        var path = EditorUtility.OpenFilePanel("选择PMX/PMD文件", Application.dataPath, "pmx,pmd");
+                        var path = EditorUtility.OpenFilePanel(Get("select_pmx_file"), Application.dataPath, "pmx,pmd");
                         if (!string.IsNullOrEmpty(path) && (path.EndsWith(".pmx", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".pmd", StringComparison.OrdinalIgnoreCase)))
                         {
                             pmxFilePath = path;
@@ -247,7 +266,7 @@ namespace VroidMMDTools
                     string animFullPath = Path.Combine(animOutputDir, animFileName);
 
                     EditorGUI.BeginDisabledGroup(isConverting);
-                    if (GUILayout.Button("从VMD生成动画剪辑"))
+                    if (GUILayout.Button(Get(BTN_GENERATE_ANIM)))
                     {
                         // 如果已有任务，先取消
                         if (cancellationTokenSource != null && !cancellationTokenSource.IsCancellationRequested)
@@ -280,23 +299,27 @@ namespace VroidMMDTools
                             if (result && File.Exists(animFullPath))
                             {
                                 sourceClip = AssetDatabase.LoadAssetAtPath<AnimationClip>(AssetUtils.GetProjectRelativePath(animFullPath));
-                                EditorUtility.DisplayDialog("成功", $"已生成动画剪辑: {animFileName}", "确定");
+                                EditorUtility.DisplayDialog(Get(DIALOG_SUCCESS), string.Format(Get("msg_anim_generated"), animFileName), Get(DIALOG_CONFIRM));
                                 AutoNameResources();
                                 animVmdParsed = true;
                             }
                             else
                             {
-                                EditorUtility.DisplayDialog("失败", "VMD转换为动画失败", "确定");
+                                EditorUtility.DisplayDialog(Get(DIALOG_ERROR), Get("msg_conversion_failed"), Get(DIALOG_CONFIRM));
                             }
                         }
                         catch (OperationCanceledException)
                         {
-                            EditorUtility.DisplayDialog("取消", "VMD转换已取消", "确定");
+                            EditorUtility.DisplayDialog(Get(DIALOG_CANCEL), Get("msg_conversion_cancelled"), Get(DIALOG_CONFIRM));
                         }
                         catch (Exception ex)
                         {
-                            EditorUtility.DisplayDialog("错误", $"VMD转换失败: {ex.Message}", "确定");
-                            UnityEngine.Debug.LogError($"[VMD转换] 失败: {ex.Message}");
+                            EditorUtility.DisplayDialog(
+                                Get(DIALOG_ERROR),
+                                string.Format(Get("msg_conversion_error"), ex.Message),
+                                Get(DIALOG_CONFIRM)
+                            );
+                            UnityEngine.Debug.LogError(string.Format(Get("log_conversion_failed"), ex.Message));
                         }
                         finally
                         {
@@ -310,9 +333,9 @@ namespace VroidMMDTools
                     // 转换中的进度条和取消按钮
                     if (isConverting)
                     {
-                        EditorGUILayout.LabelField("转换进度:");
+                        EditorGUILayout.LabelField(Get(CONVERTING_PROGRESS));
                         EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(), progress, progressMessage);
-                        if (GUILayout.Button("取消"))
+                        if (GUILayout.Button(Get(BTN_CANCEL)))
                         {
                             cancellationTokenSource?.Cancel();
                         }
@@ -323,24 +346,29 @@ namespace VroidMMDTools
         }
         private void DrawCameraExtractionSection()
         {
-            EditorGUILayout.LabelField("2. 镜头提取", EditorStyles.boldLabel);
-            enableCameraAnimation = EditorGUILayout.Toggle("启用镜头动画", enableCameraAnimation);
+            EditorGUILayout.LabelField(Get(SECTION_CAMERA), EditorStyles.boldLabel);
+            enableCameraAnimation = EditorGUILayout.Toggle(Get(ENABLE_CAMERA), enableCameraAnimation);
 
             if (enableCameraAnimation)
             {
                 // 绘制多文件拖拽区域
-                cameraVmdFilePaths = DrawMultiVmdDragAndDropArea(cameraVmdFilePaths, "镜头VMD文件", "添加镜头VMD", "清空所有");
+                cameraVmdFilePaths = DrawMultiVmdDragAndDropArea(
+                    cameraVmdFilePaths,
+                    Get(CAMERA_VMD_FILE),
+                    Get(BTN_ADD_CAMERA_VMD),
+                    Get(BTN_CLEAR_ALL)
+                );
 
                 // 显示已添加的文件列表
                 if (cameraVmdFilePaths.Count > 0)
                 {
-                    EditorGUILayout.LabelField("已添加的镜头VMD文件:", EditorStyles.miniBoldLabel);
+                    EditorGUILayout.LabelField(Get(ADDED_CAMERA_FILES), EditorStyles.miniBoldLabel);
                     for (int i = 0; i < cameraVmdFilePaths.Count; i++)
                     {
 
                         string fileName = Path.GetFileName(cameraVmdFilePaths[i]);
                         EditorGUILayout.LabelField($"{i + 1}. {fileName}", EditorStyles.miniLabel);
-                        if (GUILayout.Button("移除", GUILayout.Width(50)))
+                        if (GUILayout.Button(Get(BTN_REMOVE), GUILayout.Width(50)))
                         {
                             cameraVmdFilePaths.RemoveAt(i);
                             Repaint();
@@ -350,21 +378,24 @@ namespace VroidMMDTools
                     }
                 }
                 // 镜头缩放配置
-                cameraScale = EditorGUILayout.Slider("相机位移缩放", cameraScale, 0.1f, 2.0f);
+                cameraScale = EditorGUILayout.Slider(Get(CAMERA_SCALE), cameraScale, 0.1f, 2.0f);
 
 
-                showCameraAdvancedOptions = EditorGUILayout.Foldout(showCameraAdvancedOptions, "镜头路径配置");
+                showCameraAdvancedOptions = EditorGUILayout.Foldout(
+                    showCameraAdvancedOptions,
+                    Get(CAMERA_PATH_CONFIG)
+                );
                 if (showCameraAdvancedOptions)
                 {
-                    cameraRootPath = EditorGUILayout.TextField("相机位移接收路径", cameraRootPath);
-                    cameraDistancePath = EditorGUILayout.TextField("Distance父对象路径", cameraDistancePath);
-                    cameraComponentPath = EditorGUILayout.TextField("相机组件完整路径", cameraComponentPath);
+                    cameraRootPath = EditorGUILayout.TextField(Get(CAMERA_ROOT_PATH), cameraRootPath);
+                    cameraDistancePath = EditorGUILayout.TextField(Get(CAMERA_DISTANCE_PATH), cameraDistancePath);
+                    cameraComponentPath = EditorGUILayout.TextField(Get(CAMERA_COMPONENT_PATH), cameraComponentPath);
                 }
 
                 // 解析按钮和状态
                 if (cameraVmdFilePaths.Count > 0 && cameraVmdFilePaths.All(File.Exists))
                 {
-                    if (GUILayout.Button("解析所有镜头VMD文件"))
+                    if (GUILayout.Button(Get(BTN_PARSE_CAMERA)))
                     {
                         ParseAllCameraVmdFiles();
                     }
@@ -372,11 +403,14 @@ namespace VroidMMDTools
 
                 if (cameraVmdParsed)
                 {
-                    EditorGUILayout.LabelField($"✓ 已解析 {vmdCameraFrames.Count} 个镜头帧 (来自 {cameraVmdFilePaths.Count} 个文件)", EditorStyles.miniLabel);
+                    EditorGUILayout.LabelField(
+                        string.Format(Get(CAMERA_PARSED_INFO), vmdCameraFrames.Count, cameraVmdFilePaths.Count),
+                        EditorStyles.miniLabel
+                    );
                 }
 
                 //  清空所有镜头帧
-                if (GUILayout.Button("清空所有镜头帧"))
+                if (GUILayout.Button(Get(BTN_CLEAR_ALL)))
                 {
                     ResetCameraVmdState();
                     Repaint();
@@ -387,41 +421,51 @@ namespace VroidMMDTools
 
         private void DrawMorphExtractionSection()
         {
-            EditorGUILayout.LabelField("3. 表情提取", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(Get(SECTION_MORPH), EditorStyles.boldLabel);
 
             // 绘制多文件拖拽区域
-            morphVmdFilePaths = DrawMultiVmdDragAndDropArea(morphVmdFilePaths, "表情VMD文件", "添加表情VMD", "清空所有");
+            morphVmdFilePaths = DrawMultiVmdDragAndDropArea(
+                morphVmdFilePaths,
+                Get(MORPH_VMD_FILE),
+                Get(BTN_ADD_MORPH_VMD),
+                Get(BTN_CLEAR_ALL)
+            );
 
             // 显示已添加的文件列表
             if (morphVmdFilePaths.Count > 0)
             {
-                EditorGUILayout.LabelField("已添加的表情VMD文件:", EditorStyles.miniBoldLabel);
+                EditorGUILayout.LabelField(Get(ADDED_MORPH_FILES), EditorStyles.miniBoldLabel);
                 for (int i = 0; i < morphVmdFilePaths.Count; i++)
                 {
-
+                    EditorGUILayout.BeginHorizontal();
                     string fileName = Path.GetFileName(morphVmdFilePaths[i]);
                     EditorGUILayout.LabelField($"{i + 1}. {fileName}", EditorStyles.miniLabel);
-                    if (GUILayout.Button("移除", GUILayout.Width(50)))
+                    if (GUILayout.Button(Get(BTN_REMOVE), GUILayout.Width(50)))
                     {
                         morphVmdFilePaths.RemoveAt(i);
                         Repaint();
                         break;
                     }
-
+                    EditorGUILayout.EndHorizontal();
                 }
             }
 
             // 解析按钮和状态
             if (morphVmdFilePaths.Count > 0 && morphVmdFilePaths.All(File.Exists))
             {
-                if (GUILayout.Button("解析所有表情VMD文件"))
+                if (GUILayout.Button(Get(BTN_PARSE_MORPH)))
                 {
                     ParseAllMorphVmdFiles();
 
-                    // 初始化映射
                     if (directMappingMode && IsMorphVmdDataReady())
                     {
-                        MorphUtils.InitializeDirectMorphMapping(vmdMorphFrames, directMappingMode, morphMapping, availableMorphs, selectedMorphs);
+                        MorphUtils.InitializeDirectMorphMapping(
+                            vmdMorphFrames,
+                            directMappingMode,
+                            morphMapping,
+                            availableMorphs,
+                            selectedMorphs
+                        );
                     }
                 }
             }
@@ -429,11 +473,11 @@ namespace VroidMMDTools
             if (morphVmdParsed)
             {
                 var uniqueMorphs = vmdMorphFrames.Select(f => f.MorphName).Distinct().Count();
-                EditorGUILayout.LabelField($"✓ 已解析 {vmdMorphFrames.Count} 个表情帧，包含 {uniqueMorphs} 种表情 (来自 {morphVmdFilePaths.Count} 个文件)", EditorStyles.miniLabel);
+                EditorGUILayout.LabelField(string.Format(Get("morph_parsed_info"), vmdMorphFrames.Count, uniqueMorphs, morphVmdFilePaths.Count), EditorStyles.miniLabel);
             }
             // 清空所有表情帧
 
-            if (GUILayout.Button("清空所有表情帧"))
+            if (GUILayout.Button(Get(BTN_CLEAR_ALL)))
             {
                 ResetMorphVmdState();
                 Repaint();
@@ -447,7 +491,11 @@ namespace VroidMMDTools
         #region 通用拖拽框方法
 
         // 单个VMD文件拖拽框
-        private string DrawVmdDragAndDropArea(string currentPath, string label, string browseButtonText, string clearButtonText)
+        private string DrawVmdDragAndDropArea(
+            string currentPath,
+            string label,
+            string browseButtonText,
+            string clearButtonText)
         {
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField(label, GUILayout.Width(EditorGUIUtility.labelWidth));
@@ -455,7 +503,6 @@ namespace VroidMMDTools
             bool fileExists = !string.IsNullOrEmpty(currentPath) && File.Exists(currentPath);
             Rect dragAreaRect = GUILayoutUtility.GetRect(200, 40, GUILayout.ExpandWidth(true));
 
-            // 绘制拖拽区域
             if (fileExists)
             {
                 EditorGUI.DrawRect(dragAreaRect, new Color(0.9f, 0.95f, 0.9f));
@@ -464,15 +511,22 @@ namespace VroidMMDTools
             else
             {
                 EditorGUI.DrawRect(dragAreaRect, new Color(0.95f, 0.95f, 0.95f));
-                EditorGUI.LabelField(dragAreaRect, $"未选择{label} (可拖拽)", EditorStyles.objectFieldThumb);
+                EditorGUI.LabelField(
+                    dragAreaRect,
+                    string.Format(Get("file_not_selected"), label),
+                    EditorStyles.objectFieldThumb
+                );
             }
 
-            // 处理拖拽事件
             HandleVmdDragAndDrop(dragAreaRect, ref currentPath, false);
 
             if (GUILayout.Button(browseButtonText, GUILayout.Width(80)))
             {
-                string path = EditorUtility.OpenFilePanel($"选择{label}", Application.dataPath, "vmd");
+                string path = EditorUtility.OpenFilePanel(
+                    string.Format(Get("select_anim_vmd")),
+                    Application.dataPath,
+                    "vmd"
+                );
                 if (!string.IsNullOrEmpty(path) && path.EndsWith(".vmd", StringComparison.OrdinalIgnoreCase))
                 {
                     currentPath = path;
@@ -489,7 +543,11 @@ namespace VroidMMDTools
         }
 
         // 多个VMD文件拖拽框
-        private List<string> DrawMultiVmdDragAndDropArea(List<string> currentPaths, string label, string addButtonText, string clearButtonText)
+        private List<string> DrawMultiVmdDragAndDropArea(
+            List<string> currentPaths,
+            string label,
+            string addButtonText,
+            string clearButtonText)
         {
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField(label, GUILayout.Width(EditorGUIUtility.labelWidth));
@@ -497,24 +555,34 @@ namespace VroidMMDTools
             bool hasFiles = currentPaths != null && currentPaths.Count > 0;
             Rect dragAreaRect = GUILayoutUtility.GetRect(200, 40, GUILayout.ExpandWidth(true));
 
-            // 绘制拖拽区域
             if (hasFiles)
             {
                 EditorGUI.DrawRect(dragAreaRect, new Color(0.9f, 0.95f, 0.9f));
-                EditorGUI.LabelField(dragAreaRect, $"已选择 {currentPaths.Count} 个文件", EditorStyles.objectFieldThumb);
+                EditorGUI.LabelField(
+                    dragAreaRect,
+                    string.Format(Get("file_count"), currentPaths.Count),
+                    EditorStyles.objectFieldThumb
+                );
             }
             else
             {
                 EditorGUI.DrawRect(dragAreaRect, new Color(0.95f, 0.95f, 0.95f));
-                EditorGUI.LabelField(dragAreaRect, $"未选择{label} (可拖拽多个)", EditorStyles.objectFieldThumb);
+                EditorGUI.LabelField(
+                    dragAreaRect,
+                    string.Format(Get("file_not_selected_multi"), label),
+                    EditorStyles.objectFieldThumb
+                );
             }
 
-            // 处理拖拽事件（支持多个文件）
             HandleVmdDragAndDrop(dragAreaRect, ref currentPaths, true);
 
             if (GUILayout.Button(addButtonText, GUILayout.Width(80)))
             {
-                string path = EditorUtility.OpenFilePanel($"选择{label}", Application.dataPath, "vmd");
+                string path = EditorUtility.OpenFilePanel(
+                    string.Format(Get("select_camera_vmd")),
+                    Application.dataPath,
+                    "vmd"
+                );
                 if (!string.IsNullOrEmpty(path) && path.EndsWith(".vmd", StringComparison.OrdinalIgnoreCase))
                 {
                     if (!currentPaths.Contains(path))
@@ -606,9 +674,9 @@ namespace VroidMMDTools
 
         private void DrawNamingSettings()
         {
-            EditorGUILayout.LabelField("统一资源命名设置", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField(Get(SECTION_NAMING), EditorStyles.miniBoldLabel);
             var oldBaseName = bundleBaseName;
-            bundleBaseName = EditorGUILayout.TextField("基础名称", bundleBaseName);
+            bundleBaseName = EditorGUILayout.TextField(Get(BASE_NAME), bundleBaseName);
 
             if (!string.IsNullOrEmpty(bundleBaseName) && oldBaseName != bundleBaseName)
             {
@@ -616,7 +684,7 @@ namespace VroidMMDTools
                 controllerName = bundleBaseName;
             }
 
-            if (GUILayout.Button("自动命名", GUILayout.Width(100)))
+            if (GUILayout.Button(Get(BTN_AUTO_NAME), GUILayout.Width(100)))
             {
                 AutoNameResources();
             }
@@ -625,37 +693,46 @@ namespace VroidMMDTools
 
         private void DrawModelSettings()
         {
-            EditorGUILayout.LabelField("模型表情设置", EditorStyles.miniBoldLabel);
-            directMappingMode = EditorGUILayout.Toggle("直接映射", directMappingMode);
+            EditorGUILayout.LabelField(Get(SECTION_MODEL), EditorStyles.miniBoldLabel);
+            directMappingMode = EditorGUILayout.Toggle(Get(DIRECT_MAPPING), directMappingMode);
 
             if (directMappingMode)
             {
-                EditorGUILayout.HelpBox("直接映射模式将直接使用VMD中的表情写入到对应路径的动画里，无需关联模型", MessageType.Info);
+                EditorGUILayout.HelpBox(Get(HELP_DIRECT_MAPPING), MessageType.Info);
 
-                showSkinnedMeshOptions = EditorGUILayout.Foldout(showSkinnedMeshOptions, "SkinnedMeshRenderer 路径设置");
+                showSkinnedMeshOptions = EditorGUILayout.Foldout(
+                    showSkinnedMeshOptions,
+                    Get(SKINNED_MESH_PATH_SETTINGS)
+                );
                 if (showSkinnedMeshOptions)
                 {
                     EditorGUILayout.BeginVertical();
-                    defaultSkinnedMeshPath = EditorGUILayout.TextField("SkinnedMeshRenderer路径", defaultSkinnedMeshPath);
-                    defaultSkinnedMeshName = EditorGUILayout.TextField("组件名称", defaultSkinnedMeshName);
+                    defaultSkinnedMeshPath = EditorGUILayout.TextField(
+                        Get(SKINNED_MESH_PATH),
+                        defaultSkinnedMeshPath
+                    );
+                    defaultSkinnedMeshName = EditorGUILayout.TextField(
+                        Get(COMPONENT_NAME),
+                        defaultSkinnedMeshName
+                    );
                     EditorGUILayout.EndVertical();
                 }
             }
             else
             {
-                EditorGUILayout.HelpBox("非直接映射模式需要关联目标模型", MessageType.Info);
+                EditorGUILayout.HelpBox(Get(HELP_NON_DIRECT_MAPPING), MessageType.Info);
             }
 
             EditorGUILayout.BeginHorizontal();
-            if (directMappingMode)
-            {
-
-            }
-            else
+            if (!directMappingMode)
             {
                 targetModel = (GameObject)EditorGUILayout.ObjectField(
-                    "目标模型", targetModel, typeof(GameObject), true);
-                // 添加判断，避免重复初始化
+                    Get(TARGET_MODEL),
+                    targetModel,
+                    typeof(GameObject),
+                    true
+                );
+
                 if (targetModel != null)
                 {
                     bodyRenderer = ModelUtils.UpdateModelComponents(
@@ -672,13 +749,19 @@ namespace VroidMMDTools
                 }
             }
 
-            if (GUILayout.Button("重置", GUILayout.Width(60)))
+            if (GUILayout.Button(Get(BTN_RESET), GUILayout.Width(60)))
             {
                 targetModel = null;
                 ResetModelState();
                 if (directMappingMode && IsMorphVmdDataReady())
                 {
-                    MorphUtils.InitializeDirectMorphMapping(vmdMorphFrames, directMappingMode, morphMapping, availableMorphs, selectedMorphs);
+                    MorphUtils.InitializeDirectMorphMapping(
+                        vmdMorphFrames,
+                        directMappingMode,
+                        morphMapping,
+                        availableMorphs,
+                        selectedMorphs
+                    );
                 }
             }
 
@@ -689,28 +772,28 @@ namespace VroidMMDTools
 
         private void DrawOutputSettings()
         {
-            EditorGUILayout.LabelField("输出设置", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField(Get(SECTION_OUTPUT), EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField(Get(ANIMATION_CURVE_OPTIONS), EditorStyles.miniBoldLabel);
 
-            EditorGUILayout.LabelField("动画曲线添加选项", EditorStyles.miniBoldLabel);
-            addMorphCurves = EditorGUILayout.Toggle("添加表情曲线", addMorphCurves);
-            addCameraCurves = EditorGUILayout.Toggle("添加镜头曲线", addCameraCurves);
+            addMorphCurves = EditorGUILayout.Toggle(Get(ADD_MORPH_CURVES), addMorphCurves);
+            addCameraCurves = EditorGUILayout.Toggle(Get(ADD_CAMERA_CURVES), addCameraCurves);
 
             EditorGUILayout.BeginHorizontal();
             if (addMorphCurves && addCameraCurves)
             {
-                EditorGUILayout.HelpBox("将原有动画与表情动画、镜头动画合并输出", MessageType.Info);
+                EditorGUILayout.HelpBox(Get(HELP_MERGE_MORPH_CAMERA), MessageType.Info);
             }
             else if (addMorphCurves)
             {
-                EditorGUILayout.HelpBox("将原有动画与表情动画合并输出", MessageType.Info);
+                EditorGUILayout.HelpBox(Get(HELP_MERGE_MORPH), MessageType.Info);
             }
             else if (addCameraCurves)
             {
-                EditorGUILayout.HelpBox("将原有动画与镜头动画合并输出", MessageType.Info);
+                EditorGUILayout.HelpBox(Get(HELP_MERGE_CAMERA), MessageType.Info);
             }
             else
             {
-                EditorGUILayout.HelpBox("请至少选择一种曲线类型添加", MessageType.Warning);
+                EditorGUILayout.HelpBox(Get(HELP_SELECT_CURVE_TYPE), MessageType.Warning);
             }
             EditorGUILayout.EndHorizontal();
 
@@ -719,18 +802,25 @@ namespace VroidMMDTools
 
         private void DrawMorphMappingSettings()
         {
-            showMappingOptions = EditorGUILayout.Foldout(showMappingOptions, "形态键选择与映射设置");
+            showMappingOptions = EditorGUILayout.Foldout(
+                showMappingOptions,
+                Get(MORPH_MAPPING_SETTINGS)
+            );
+
             if (showMappingOptions && availableMorphs.Count > 0 && IsMorphVmdDataReady())
             {
                 allMorphsScrollPos = EditorGUILayout.BeginScrollView(allMorphsScrollPos, GUILayout.Height(300));
-                EditorGUILayout.LabelField("选择需要使用的形态键并设置映射关系", EditorStyles.miniBoldLabel);
-                EditorGUILayout.LabelField("（勾选启用，文本框填写映射目标名称）", EditorStyles.miniLabel);
+                EditorGUILayout.LabelField(Get(MORPH_MAPPING_INSTRUCTION1), EditorStyles.miniBoldLabel);
+                EditorGUILayout.LabelField(Get(MORPH_MAPPING_INSTRUCTION2), EditorStyles.miniLabel);
 
                 // 批量操作按钮
                 EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button("全选")) MorphUtils.SelectAllMorphs(availableMorphs, selectedMorphs, true);
-                if (GUILayout.Button("选择前20个")) MorphUtils.SelectFirstNMorphs(availableMorphs, selectedMorphs, 20);
-                if (GUILayout.Button("取消全选")) MorphUtils.SelectAllMorphs(availableMorphs, selectedMorphs, false);
+                if (GUILayout.Button(Get(BTN_SELECT_ALL)))
+                    MorphUtils.SelectAllMorphs(availableMorphs, selectedMorphs, true);
+                if (GUILayout.Button(Get(BTN_SELECT_FIRST_20)))
+                    MorphUtils.SelectFirstNMorphs(availableMorphs, selectedMorphs, 20);
+                if (GUILayout.Button(Get(BTN_DESELECT_ALL)))
+                    MorphUtils.SelectAllMorphs(availableMorphs, selectedMorphs, false);
                 EditorGUILayout.EndHorizontal();
 
                 // 获取VMD中的所有唯一形态键名称
@@ -740,7 +830,9 @@ namespace VroidMMDTools
                 {
                     EditorGUILayout.BeginHorizontal();
 
-                    bool isSelected = selectedMorphs.TryGetValue(vmdMorph, out bool selectedValue) ? selectedValue : false;
+                    bool isSelected = selectedMorphs.TryGetValue(vmdMorph, out bool selectedValue)
+                        ? selectedValue
+                        : false;
 
                     EditorGUI.BeginChangeCheck();
                     isSelected = EditorGUILayout.ToggleLeft("", isSelected, GUILayout.Width(20));
@@ -753,7 +845,12 @@ namespace VroidMMDTools
 
                     string currentMapping = morphMapping.TryGetValue(vmdMorph, out string mapValue)
                         ? mapValue
-                        : ModelUtils.GetMappedMorphName(vmdMorph, morphMapping, vrmBlendShapeMapping, availableMorphs);
+                        : ModelUtils.GetMappedMorphName(
+                            vmdMorph,
+                            morphMapping,
+                            vrmBlendShapeMapping,
+                            availableMorphs
+                        );
 
                     EditorGUI.BeginChangeCheck();
                     currentMapping = EditorGUILayout.TextField(currentMapping);
@@ -769,7 +866,7 @@ namespace VroidMMDTools
             }
             else if (availableMorphs.Count == 0 && (targetModel != null || IsMorphVmdDataReady()))
             {
-                EditorGUILayout.HelpBox("未找到可用的形态键数据，请先解析表情VMD文件或关联模型", MessageType.Info);
+                EditorGUILayout.HelpBox(Get(HELP_NO_MORPH_DATA), MessageType.Info);
             }
             EditorGUILayout.Space();
         }
@@ -777,7 +874,7 @@ namespace VroidMMDTools
         private void DrawActionButtons()
         {
             GUI.enabled = CanProcessAnimation();
-            if (GUILayout.Button("添加到动画并创建控制器", GUILayout.Height(30)))
+            if (GUILayout.Button(Get(BTN_PROCESS), GUILayout.Height(30)))
             {
                 ProcessAnimationAndController();
             }
@@ -788,9 +885,9 @@ namespace VroidMMDTools
 
         private void DrawAudioSettings()
         {
-            EditorGUILayout.LabelField("音频设置", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField(Get(SECTION_AUDIO), EditorStyles.miniBoldLabel);
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("音频文件", GUILayout.Width(EditorGUIUtility.labelWidth));
+            EditorGUILayout.LabelField(Get(AUDIO_FILE), GUILayout.Width(EditorGUIUtility.labelWidth));
 
             EditorGUI.BeginChangeCheck();
             var projectRelativeAudioPath = AssetUtils.GetProjectRelativePath(audioFilePath);
@@ -811,10 +908,10 @@ namespace VroidMMDTools
             }
             else
             {
-                EditorGUILayout.LabelField("未选择音频文件", EditorStyles.objectFieldThumb);
+                EditorGUILayout.LabelField(Get(AUDIO_NOT_SELECTED), EditorStyles.objectFieldThumb);
             }
 
-            if (GUILayout.Button("浏览...", GUILayout.Width(80)))
+            if (GUILayout.Button(Get(BTN_BROWSE), GUILayout.Width(80)))
             {
                 BrowseAudioFile();
             }
@@ -823,43 +920,39 @@ namespace VroidMMDTools
         }
         private void DrawTimelinePreview()
         {
-            // 折叠区域控制
-            showTimelinePreview = EditorGUILayout.Foldout(showTimelinePreview, "Timeline 预览", true);
+            showTimelinePreview = EditorGUILayout.Foldout(showTimelinePreview, Get(SECTION_TIMELINE), true);
 
             if (showTimelinePreview)
             {
                 EditorGUI.indentLevel++;
 
-                // 人物模型拖放区域
-                EditorGUILayout.LabelField("角色模型", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(Get(CHARACTER_MODEL), EditorStyles.boldLabel);
                 characterModel = EditorGUILayout.ObjectField(
-                    "拖放模型到此处",
+                    Get(DRAG_MODEL_HERE),
                     characterModel,
                     typeof(GameObject),
                     true) as GameObject;
 
                 EditorGUILayout.Space();
 
-                // 创建Timeline按钮
                 GUI.enabled = characterModel != null &&
                              !string.IsNullOrEmpty(bundleBaseName) &&
                              Directory.Exists(DefaultOutputPath);
 
-                if (GUILayout.Button("创建预览Timeline"))
+                if (GUILayout.Button(Get(BTN_CREATE_TIMELINE)))
                 {
                     CreateTimelinePreview();
                 }
 
-                // 按钮状态提示
                 if (!GUI.enabled)
                 {
                     string disabledReason = "";
                     if (characterModel == null)
-                        disabledReason = "请先指定角色模型";
+                        disabledReason = Get(HELP_SPECIFY_MODEL);
                     else if (string.IsNullOrEmpty(bundleBaseName))
-                        disabledReason = "请设置有效的基础名称";
+                        disabledReason = Get(HELP_SET_BASE_NAME);
                     else if (!Directory.Exists(DefaultOutputPath))
-                        disabledReason = "输出目录不存在，请先生成动画资源";
+                        disabledReason = Get(HELP_GENERATE_RESOURCES);
 
                     EditorGUILayout.HelpBox(disabledReason, MessageType.Info);
                 }
@@ -868,6 +961,7 @@ namespace VroidMMDTools
                 EditorGUI.indentLevel--;
             }
         }
+
         private void CreateTimelinePreview()
         {
             // --------------- 核心修改1：强制覆写模型的Animator控制器 ---------------
@@ -1047,29 +1141,27 @@ namespace VroidMMDTools
 
         private void DrawAssetBundleSettings()
         {
-            EditorGUILayout.LabelField("资源打包设置", EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox("打包前请先在Unity内预览，确保一切正常，并且确保音频轴对上动作轴", MessageType.Info);
-            EditorGUILayout.HelpBox("如果预览时人物朝向、初始位置不对，请在动画Inspector中调整", MessageType.Info);
-            EditorGUILayout.LabelField("自动打包（高级）", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField(Get(SECTION_BUNDLE), EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(Get(HELP_PREVIEW_FIRST), MessageType.Info);
+            EditorGUILayout.HelpBox(Get(HELP_ADJUST_POSE), MessageType.Info);
+            EditorGUILayout.LabelField(Get(AUTO_BUILD_ADVANCED), EditorStyles.miniBoldLabel);
 
-            showBundleOptions = EditorGUILayout.Foldout(showBundleOptions, "打包高级选项");
+            showBundleOptions = EditorGUILayout.Foldout(showBundleOptions, Get(BUNDLE_ADVANCED_OPTIONS));
             if (showBundleOptions)
             {
-                bundleOptions = (BuildAssetBundleOptions)EditorGUILayout.EnumFlagsField("打包选项", bundleOptions);
-                EditorGUILayout.HelpBox(
-                    "None: 基本打包\n" +
-                    "ChunkBasedCompression: 分块压缩\n" +
-                    "DeterministicAssetBundle: 确定性打包",
-                    MessageType.Info
+                bundleOptions = (BuildAssetBundleOptions)EditorGUILayout.EnumFlagsField(
+                    Get(BUNDLE_OPTIONS),
+                    bundleOptions
                 );
+                EditorGUILayout.HelpBox(Get(HELP_BUNDLE_OPTIONS), MessageType.Info);
             }
 
             if (string.IsNullOrEmpty(bundleOutputPath))
             {
                 bundleOutputPath = outputPath;
             }
-            bundleOutputPath = EditorGUILayout.TextField("自动打包输出路径", bundleOutputPath);
-            if (GUILayout.Button("选择输出路径", GUILayout.Width(120)))
+            bundleOutputPath = EditorGUILayout.TextField(Get(AUTO_BUILD_OUTPUT_PATH), bundleOutputPath);
+            if (GUILayout.Button(Get(BTN_SELECT_OUTPUT_PATH), GUILayout.Width(120)))
             {
                 bundleOutputPath = SelectBundleOutputPath(bundleOutputPath);
             }
@@ -1079,8 +1171,9 @@ namespace VroidMMDTools
                 bool isInProject = bundleOutputPath.StartsWith(Application.dataPath) ||
                                   bundleOutputPath.StartsWith("Assets/");
                 EditorGUILayout.HelpBox(
-                    isInProject ? $"输出路径在项目内: {bundleOutputPath}" :
-                                  $"输出路径在项目外: {bundleOutputPath}",
+                    isInProject
+                        ? string.Format(Get("help_path_in_project"), bundleOutputPath)
+                        : string.Format(Get("help_path_outside_project"), bundleOutputPath),
                     MessageType.Info
                 );
             }
@@ -1088,7 +1181,7 @@ namespace VroidMMDTools
             DrawBundleAssetsPreview(outputPath);
 
             GUI.enabled = CanBuildBundle(bundleOutputPath);
-            if (GUILayout.Button("📦 自动打包", GUILayout.Height(30)))
+            if (GUILayout.Button(Get(BTN_AUTO_BUILD), GUILayout.Height(30)))
             {
                 AssetUtils.BuildAssetBundle(
                     outputPath,
@@ -1101,60 +1194,13 @@ namespace VroidMMDTools
             }
             GUI.enabled = true;
 
-            EditorGUILayout.HelpBox("如果自动打包失败, 请手动构建文件", MessageType.Info);
+            EditorGUILayout.HelpBox(Get(HELP_MANUAL_BUILD), MessageType.Info);
             EditorGUILayout.Space();
         }
 
         #endregion
 
         #region 新增和修改的核心方法
-
-        private void BrowseAnimVmdFile()
-        {
-            var path = EditorUtility.OpenFilePanel("选择动画VMD文件", Application.dataPath, "vmd");
-            if (!string.IsNullOrEmpty(path) && path.EndsWith(".vmd"))
-            {
-                animVmdFilePath = path;
-            }
-        }
-
-        private void BrowseCameraVmdFile()
-        {
-            // Unity EditorUtility does not have OpenFilePanelMultiple, so we use a loop for multiple selection
-            bool addMore = true;
-            while (addMore)
-            {
-                string path = EditorUtility.OpenFilePanel("选择镜头VMD文件", Application.dataPath, "vmd");
-                if (!string.IsNullOrEmpty(path) && path.EndsWith(".vmd", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (!cameraVmdFilePaths.Contains(path))
-                    {
-                        cameraVmdFilePaths.Add(path);
-                    }
-                }
-                // Ask user if they want to add more files
-                addMore = EditorUtility.DisplayDialog("添加更多文件?", "是否继续添加镜头VMD文件？", "继续添加", "完成");
-            }
-        }
-
-        private void BrowseMorphVmdFile()
-        {
-            // Unity EditorUtility does not have OpenFilePanelMultiple, so we use a loop for multiple selection
-            bool addMore = true;
-            while (addMore)
-            {
-                string path = EditorUtility.OpenFilePanel("选择表情VMD文件", Application.dataPath, "vmd");
-                if (!string.IsNullOrEmpty(path) && path.EndsWith(".vmd", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (!morphVmdFilePaths.Contains(path))
-                    {
-                        morphVmdFilePaths.Add(path);
-                    }
-                }
-                // Ask user if they want to add more files
-                addMore = EditorUtility.DisplayDialog("添加更多文件?", "是否继续添加表情VMD文件？", "继续添加", "完成");
-            }
-        }
 
         private void ParseAnimVmdFile()
         {
@@ -1186,7 +1232,11 @@ namespace VroidMMDTools
         {
             if (cameraVmdFilePaths == null || cameraVmdFilePaths.Count == 0 || !cameraVmdFilePaths.All(File.Exists))
             {
-                EditorUtility.DisplayDialog("错误", "部分镜头VMD文件不存在", "确定");
+                EditorUtility.DisplayDialog(
+                    Get(DIALOG_ERROR),
+                    string.Format(Get("msg_files_not_exist"), Get(CAMERA_VMD_FILE)),
+                    Get(DIALOG_CONFIRM)
+                );
                 return;
             }
 
@@ -1202,9 +1252,11 @@ namespace VroidMMDTools
                 foreach (var filePath in cameraVmdFilePaths)
                 {
                     currentFile++;
-                    EditorUtility.DisplayProgressBar("解析镜头VMD",
-                        $"正在解析 {Path.GetFileName(filePath)} ({currentFile}/{totalFiles})",
-                        (float)currentFile / totalFiles);
+                    EditorUtility.DisplayProgressBar(
+                        Get("progress_parsing_camera"),
+                        string.Format(Get("progress_parsing_file"), Path.GetFileName(filePath), currentFile, totalFiles),
+                        (float)currentFile / totalFiles
+                    );
 
                     using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
                     {
@@ -1214,15 +1266,24 @@ namespace VroidMMDTools
                     }
                 }
 
-                // 按帧时间排序
                 vmdCameraFrames = vmdCameraFrames.OrderBy(f => f.FrameIndex).ToList();
                 cameraVmdParsed = true;
-                Debug.Log($"成功解析 {totalFiles} 个镜头VMD文件，共 {vmdCameraFrames.Count} 个镜头帧");
+                Debug.Log(string.Format(
+                    Get("log_parse_success_frames"),
+                    totalFiles,
+                    Get(CAMERA_VMD_FILE),
+                    vmdCameraFrames.Count,
+                    "镜头"
+                ));
             }
             catch (Exception e)
             {
-                EditorUtility.DisplayDialog("解析错误", $"解析镜头VMD文件时出错: {e.Message}", "确定");
-                Debug.LogError($"镜头VMD解析错误: {e}");
+                EditorUtility.DisplayDialog(
+                    Get(DIALOG_ERROR),
+                    string.Format(Get("msg_parse_error"), Get(CAMERA_VMD_FILE), e.Message),
+                    Get(DIALOG_CONFIRM)
+                );
+                Debug.LogError(string.Format(Get("log_parse_error"), "镜头", e));
                 cameraVmdParsed = false;
             }
             finally
@@ -1273,7 +1334,7 @@ namespace VroidMMDTools
             }
             catch (Exception e)
             {
-                EditorUtility.DisplayDialog("解析错误", $"解析表情VMD文件时出错: {e.Message}", "确定");
+                EditorUtility.DisplayDialog(Get(DIALOG_ERROR), $"解析表情VMD文件时出错: {e.Message}", "确定");
                 Debug.LogError($"表情VMD解析错误: {e}");
                 morphVmdParsed = false;
             }
@@ -1283,118 +1344,103 @@ namespace VroidMMDTools
             }
         }
 
-        private void TryFindAnimVmdFile()
-        {
-            try
-            {
-                var clipName = sourceClip.name;
-                if (clipName.Contains("@"))
-                {
-                    clipName = clipName.Substring(clipName.IndexOf("@") + 1);
-                }
-
-                var possibleNames = new[] {
-                    clipName,
-                    clipName.Replace("_vmd", ""),
-                    clipName.Replace("_VMD", ""),
-                    $"{clipName}_vmd",
-                    $"{clipName}_VMD"
-                };
-
-                var vmdFiles = Directory.GetFiles(Application.dataPath, "*.vmd", SearchOption.AllDirectories);
-                foreach (var possibleName in possibleNames)
-                {
-                    animVmdFilePath = vmdFiles.FirstOrDefault(f =>
-                        Path.GetFileNameWithoutExtension(f) == possibleName);
-
-                    if (!string.IsNullOrEmpty(animVmdFilePath))
-                    {
-                        Debug.Log($"自动找到动画VMD文件: {animVmdFilePath}");
-                        if (!animVmdParsed)
-                            ParseAnimVmdFile();
-                        break;
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"自动查找VMD文件时出错: {e.Message}");
-            }
-        }
-
         private void ProcessAnimationAndController()
         {
             if (!addMorphCurves && !addCameraCurves)
             {
-                EditorUtility.DisplayDialog("提示", "请至少选择一种曲线类型添加", "确定");
+                EditorUtility.DisplayDialog(
+                    Get(DIALOG_INFO),
+                    Get(HELP_SELECT_CURVE_TYPE),
+                    Get(DIALOG_CONFIRM)
+                );
                 return;
             }
 
             try
             {
-                // 1. 创建基础动画（复制原动画曲线）
                 var baseClip = AnimUtils.CreateOriginalAnimationClip(sourceClip, bundleBaseName, DefaultFrameRate);
                 if (baseClip == null)
                 {
-                    EditorUtility.DisplayDialog("错误", "未找到原动画剪辑", "确定");
+                    EditorUtility.DisplayDialog(
+                        Get(DIALOG_ERROR),
+                        Get("msg_no_original_clip"),
+                        Get(DIALOG_CONFIRM)
+                    );
                     return;
                 }
 
-                // 2. 根据选项添加表情曲线
                 if (addMorphCurves && IsMorphVmdDataReady())
                 {
                     baseClip = directMappingMode
-                        ? AnimUtils.AddMorphCurvesDirectMode(baseClip, vmdMorphFrames, selectedMorphs, morphMapping, defaultSkinnedMeshPath)
-                        : AnimUtils.AddMorphCurvesToAnimation(baseClip, vmdMorphFrames, selectedMorphs, morphMapping, targetModel, bodyRenderer);
+                        ? AnimUtils.AddMorphCurvesDirectMode(
+                            baseClip,
+                            vmdMorphFrames,
+                            selectedMorphs,
+                            morphMapping,
+                            defaultSkinnedMeshPath
+                        )
+                        : AnimUtils.AddMorphCurvesToAnimation(
+                            baseClip,
+                            vmdMorphFrames,
+                            selectedMorphs,
+                            morphMapping,
+                            targetModel,
+                            bodyRenderer
+                        );
                 }
 
-                // 3. 根据选项添加镜头曲线
                 if (addCameraCurves && cameraVmdParsed)
                 {
                     foreach (var cameraVmdFilePath in cameraVmdFilePaths)
                     {
-                        baseClip = AnimUtils.AddCameraCurvesToClip(baseClip, cameraVmdFilePath, cameraRootPath, cameraDistancePath, cameraComponentPath, cameraScale);
+                        baseClip = AnimUtils.AddCameraCurvesToClip(
+                            baseClip,
+                            cameraVmdFilePath,
+                            cameraRootPath,
+                            cameraDistancePath,
+                            cameraComponentPath,
+                            cameraScale
+                        );
                     }
                 }
 
-                // 设置动画属性
                 AnimationClipSettings clipSettings = AnimationUtility.GetAnimationClipSettings(baseClip);
-                // Root Transform Rotation
                 clipSettings.loopTime = false;
-                clipSettings.loopBlend = true;
-
-                clipSettings.keepOriginalOrientation = true; // Based Upon: Original
-                                                             // Bake Into Pose: true
-
-                // Root Transform Position Y
-                clipSettings.keepOriginalPositionY = true;   // Based Upon: Original
-                                                             // Bake Into Pose: true
-
-                // Root Transform Position XZ
-                clipSettings.keepOriginalPositionXZ = true;  // Based Upon: Original
-                                                             // Bake Into Pose: true
-
                 clipSettings.loopBlendOrientation = true;
                 clipSettings.loopBlendPositionY = true;
                 clipSettings.loopBlendPositionXZ = true;
                 AnimationUtility.SetAnimationClipSettings(baseClip, clipSettings);
 
-                // 4. 保存动画剪辑
                 string clipPath = $"{outputPath}{bundleBaseName}.anim";
                 AssetDatabase.CreateAsset(baseClip, clipPath);
 
-                // 5. 处理动画控制器
-                AnimatorController controller = AssetUtils.CreateControllerForClip(baseClip, "", outputPath, bundleBaseName);
+                AnimatorController controller = AssetUtils.CreateControllerForClip(
+                    baseClip,
+                    "",
+                    outputPath,
+                    bundleBaseName
+                );
 
-                EditorUtility.DisplayDialog("成功",
-                $"已生成动画: {baseClip.name}\n" +
-                (controller != null ? $"已生成控制器: {controller.name}" : ""),
-                "确定");
+                string successMessage = string.Format(Get("msg_anim_created"), baseClip.name);
+                if (controller != null)
+                {
+                    successMessage += "\n" + string.Format(Get("msg_controller_created"), controller.name);
+                }
+
+                EditorUtility.DisplayDialog(
+                    Get(DIALOG_SUCCESS),
+                    successMessage,
+                    Get(DIALOG_CONFIRM)
+                );
             }
             catch (Exception e)
             {
-                EditorUtility.DisplayDialog("错误", $"处理动画时出错: {e.Message}", "确定");
-                Debug.LogError($"动画处理错误: {e}");
+                EditorUtility.DisplayDialog(
+                    Get(DIALOG_ERROR),
+                    string.Format(Get("msg_process_error"), e.Message),
+                    Get(DIALOG_CONFIRM)
+                );
+                Debug.LogError(string.Format(Get("log_anim_process_error"), e));
             }
         }
 
@@ -1404,7 +1450,7 @@ namespace VroidMMDTools
 
         private void BrowseAudioFile()
         {
-            var path = EditorUtility.OpenFilePanel("选择音频文件", Application.dataPath, "wav,mp3,ogg");
+            var path = EditorUtility.OpenFilePanel(Get("select_audio_file"), Application.dataPath, "wav,mp3,ogg");
             if (!string.IsNullOrEmpty(path))
             {
                 audioFilePath = AssetUtils.GetProjectRelativePath(path);
@@ -1413,7 +1459,7 @@ namespace VroidMMDTools
 
         private string SelectBundleOutputPath(string currentPath)
         {
-            var path = EditorUtility.OpenFolderPanel("选择输出文件夹",
+            var path = EditorUtility.OpenFolderPanel(Get("select_output_folder"),
                 string.IsNullOrEmpty(currentPath) ? Application.dataPath : currentPath,
                 "");
 
@@ -1428,35 +1474,50 @@ namespace VroidMMDTools
         private void DrawBundleAssetsPreview(string outputPath)
         {
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("将打包的资源:", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField(Get(ASSETS_TO_PACK), EditorStyles.miniBoldLabel);
 
             string clipName = $"{bundleBaseName}.anim";
-            EditorGUILayout.LabelField($"- 动画: {clipName}", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField(string.Format(Get(ASSET_ANIMATION), clipName), EditorStyles.miniLabel);
             string clipFullPath = Path.Combine(outputPath, clipName);
             if (!File.Exists(clipFullPath))
             {
-                EditorGUILayout.HelpBox($"动画文件 {clipName} 不存在于输出: {outputPath}", MessageType.Warning);
+                EditorGUILayout.HelpBox(
+                    string.Format(Get("help_anim_not_exist"), clipName, outputPath),
+                    MessageType.Warning
+                );
             }
 
             string controllerName = $"{bundleBaseName}.controller";
-            EditorGUILayout.LabelField($"- 控制器: {controllerName}", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField(
+                string.Format(Get(ASSET_CONTROLLER), controllerName),
+                EditorStyles.miniLabel
+            );
             string controllerFullPath = Path.Combine(outputPath, controllerName);
             if (!File.Exists(controllerFullPath))
             {
-                EditorGUILayout.HelpBox($"控制器文件 {controllerName} 不存在于输出: {outputPath}", MessageType.Warning);
+                EditorGUILayout.HelpBox(
+                    string.Format(Get("help_controller_not_exist"), controllerName, outputPath),
+                    MessageType.Warning
+                );
             }
 
             if (!string.IsNullOrEmpty(audioFilePath) && File.Exists(audioFilePath))
             {
                 string audioName = Path.GetFileName(audioFilePath);
-                EditorGUILayout.LabelField($"- 音频: {audioName}", EditorStyles.miniLabel);
+                EditorGUILayout.LabelField(
+                    string.Format(Get(ASSET_AUDIO), audioName),
+                    EditorStyles.miniLabel
+                );
             }
             else
             {
-                EditorGUILayout.LabelField("- 音频: 未选择", EditorStyles.miniLabel);
+                EditorGUILayout.LabelField(Get(ASSET_AUDIO_NONE), EditorStyles.miniLabel);
             }
 
-            EditorGUILayout.LabelField("资源将统一命名并被打包输出为: " + bundleBaseName + ".unity3d", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField(
+                string.Format(Get(BUNDLE_OUTPUT_INFO), bundleBaseName),
+                EditorStyles.miniBoldLabel
+            );
         }
 
         private void ShowMorphStatistics()
@@ -1465,19 +1526,33 @@ namespace VroidMMDTools
 
             var totalMorphs = vmdMorphFrames.Select(f => f.MorphName).Distinct().Count();
             var matchedMorphs = vmdMorphFrames
-                .Select(f => ModelUtils.GetMappedMorphName(f.MorphName, morphMapping, vrmBlendShapeMapping, availableMorphs))
+                .Select(f => ModelUtils.GetMappedMorphName(
+                    f.MorphName,
+                    morphMapping,
+                    vrmBlendShapeMapping,
+                    availableMorphs
+                ))
                 .Distinct()
                 .Count(n => availableMorphs.Contains(n));
 
-            EditorGUILayout.LabelField($"VMD表情总数: {totalMorphs} 个", EditorStyles.miniLabel);
-            EditorGUILayout.LabelField($"匹配到模型的表情: {matchedMorphs} 个", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField(
+                string.Format(Get(VMD_MORPH_COUNT), totalMorphs),
+                EditorStyles.miniLabel
+            );
+            EditorGUILayout.LabelField(
+                string.Format(Get(MATCHED_MORPH_COUNT), matchedMorphs),
+                EditorStyles.miniLabel
+            );
 
             var matchRate = totalMorphs > 0 ? (float)matchedMorphs / totalMorphs * 100 : 0;
-            EditorGUILayout.LabelField($"匹配率: {matchRate:F1}%", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField(
+                string.Format(Get(MATCH_RATE), matchRate),
+                EditorStyles.miniLabel
+            );
 
             if (matchedMorphs == 0 && !directMappingMode)
             {
-                EditorGUILayout.HelpBox("未找到匹配的表情数据，请检查形态键映射设置", MessageType.Warning);
+                EditorGUILayout.HelpBox(Get(HELP_NO_MATCH), MessageType.Warning);
             }
         }
 
