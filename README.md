@@ -2,7 +2,13 @@
 
 **Other Language Versions: [English](README.md), [中文](README_zh.md)**
 
-**5-Minute Quick Video Tutorial:**
+## Note on Alternative Tools
+
+If you are looking for a more focused and efficient tool dedicated solely to converting MMD files to Unity, consider the following repository:
+
+[UnityMMDConverter](https://github.com/maoxig/UnityMMDConverter)
+
+---
 
 This tool primarily focuses on converting MMD (MikuMikuDance) files into Unity-compatible `.anim` files and animation controllers, while also adding facial expressions and camera curves. It streamlines many tedious and time-consuming tasks using scripts.
 

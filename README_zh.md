@@ -2,8 +2,12 @@
 
 **其他语言版本: [English](README.md), [中文](README_zh.md)**
 
-5分钟极速版视频教程：
 
+## 提示：本工具箱混杂了许多与MMD转换到unity无关的工具，如果要更加纯净、高效的MMD转换工具，请移步：
+
+https://github.com/maoxig/UnityMMDConverter
+
+---
 
 主要是关于MMD转换成unity可用的anim和controller，并且添加表情和镜头曲线，利用脚本优化了许多繁琐费时的工作
 
